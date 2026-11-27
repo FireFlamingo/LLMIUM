@@ -147,3 +147,20 @@ The full Qwen model was also evaluated with the Rust Candle CPU adapter using BF
 | Exact checkpoint and runtime recovery | Baseline | Fault observed | Verified |
 
 Every repaired logit hash and generated token sequence matched the reference, and the checkpoint file hash matched exactly. The repeated prompt produced the same tokens and logit hashes within each healthy stage. The continuation for `The capital of France is` was ` Paris. The capital` in both healthy checkpoints. Results cover these prompts and this runtime. The saved evidence is `examples/qwen-runtime.json`. See [DEMO.md](DEMO.md) for a presentation sequence. General semantic vulnerability discovery remains research work.
+
+The instrumented comparison also completed on the real model, with two generated tokens per healthy prompt and the same three prompt evaluations. It recorded 507 intermediate outputs per forward step, totaling 7,605 observations. All 3,042 repaired observations matched the reference exactly. The 12 healthy logit hashes also matched the corresponding first two steps of the earlier uninstrumented run. The saved trace evidence is `examples/qwen-activation.json`.
+
+For all three candidate prompts, the first changed output and first nonfinite output were the first layer's query projection, observation 2. In the five-token France prompt, the measured path was:
+
+| Recorded output | Nonfinite elements |
+| --- | ---: |
+| Token embedding and input normalization | 0 |
+| Query projection | 5 of 7,680 |
+| Parallel key and value projections | 0 |
+| Query after RoPE | 10 of 7,680 |
+| Attention scores and probabilities, each | 25 of 300 |
+| Attention context | 640 of 7,680 |
+| Attention output projection | 7,680 of 7,680 |
+| Final logits | 151,936 of 151,936 |
+
+The controlled parameter comparison identifies one changed weight, while these counts describe its observed activation propagation. The corresponding reference and repaired outputs were finite. This establishes the recorded numerical behavior for this seeded experiment.

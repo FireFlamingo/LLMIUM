@@ -78,6 +78,7 @@ window.atlasUI = (() => {
         execution = null;
         byId('atlas-execution').hidden = true;
         modelId = id;
+        if (id !== null) byId('atlas-model').value = id;
         if (!Array.isArray(data.tensors) || !Array.isArray(data.layers)) throw Error('Atlas inventory is missing');
         layer = data.layers.length ? data.layers[0].index : null;
         byId('assessment').hidden = true;
