@@ -1,1 +1,0 @@
-"""LLMIUM checkpoint assessment."""
