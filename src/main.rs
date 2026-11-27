@@ -15,6 +15,9 @@ use std::{
 mod atlas;
 #[cfg(feature = "inference")]
 mod inference;
+mod trace_report;
+#[cfg(feature = "inference")]
+mod traced_qwen;
 
 #[derive(Parser)]
 #[command(
@@ -27,6 +30,23 @@ struct Cli {
 }
 #[derive(Subcommand)]
 enum Command {
+    TraceSlice {
+        path: PathBuf,
+        #[arg(long)]
+        stage: Option<String>,
+        #[arg(long, default_value_t = 0)]
+        evaluation: usize,
+        #[arg(long, default_value_t = 0)]
+        step: usize,
+        #[arg(long, default_value = "")]
+        module_prefix: String,
+        #[arg(long)]
+        nonfinite_only: bool,
+        #[arg(long, default_value_t = 0)]
+        offset: usize,
+        #[arg(long, default_value_t = 32)]
+        count: usize,
+    },
     Graph {
         path: PathBuf,
         #[arg(long)]
@@ -93,6 +113,9 @@ enum Command {
         max_new_tokens: usize,
         #[arg(long, default_value = "bf16", value_parser = ["bf16", "f32"])]
         dtype: String,
+        /// Record bounded intermediate activations from an instrumented Qwen2 forward pass.
+        #[arg(long)]
+        trace: bool,
         #[arg(long)]
         output: PathBuf,
     },
@@ -111,6 +134,9 @@ enum Command {
         max_new_tokens: usize,
         #[arg(long, default_value = "bf16", value_parser = ["bf16", "f32"])]
         dtype: String,
+        /// Record intermediate activation traces for each comparison stage.
+        #[arg(long)]
+        trace: bool,
         #[arg(long)]
         output: PathBuf,
     },
@@ -542,6 +568,25 @@ fn experiment(reference: &Path, target: &str, output: &Path) -> Result<Value> {
     write_json(&output.join("demo.json"), &result)?;
     Ok(result)
 }
+fn validate_viewer_origin(host: Option<&str>, origin: Option<&str>, port: u16) -> Result<()> {
+    let host = host
+        .context("Missing viewer Host header")?
+        .to_ascii_lowercase();
+    let local = [format!("127.0.0.1:{port}"), format!("localhost:{port}")];
+    ensure!(
+        local.contains(&host)
+            || (port == 80 && ["127.0.0.1", "localhost"].contains(&host.as_str())),
+        "Viewer requires a loopback Host header"
+    );
+    if let Some(origin) = origin {
+        ensure!(
+            origin.eq_ignore_ascii_case(&format!("http://{host}")),
+            "Cross-origin viewer request rejected"
+        );
+    }
+    Ok(())
+}
+
 fn serve(root: &Path, port: u16, checkpoints: &[PathBuf]) -> Result<()> {
     let root = fs::canonicalize(root)?;
     let checkpoints = checkpoints
@@ -556,6 +601,14 @@ fn serve(root: &Path, port: u16, checkpoints: &[PathBuf]) -> Result<()> {
     println!("LLMIUM viewer http://127.0.0.1:{port}");
     for request in server.incoming_requests() {
         let response = (|| -> Result<(Vec<u8>, &str)> {
+            let header = |name| {
+                request
+                    .headers()
+                    .iter()
+                    .find(|header| header.field.equiv(name))
+                    .map(|header| header.value.as_str())
+            };
+            validate_viewer_origin(header("Host"), header("Origin"), port)?;
             ensure!(
                 request.method() == &tiny_http::Method::Get,
                 "Read-only viewer"
@@ -568,6 +621,10 @@ fn serve(root: &Path, port: u16, checkpoints: &[PathBuf]) -> Result<()> {
                 )),
                 "/atlas.js" => Ok((
                     include_bytes!("../web/atlas.js").to_vec(),
+                    "text/javascript; charset=utf-8",
+                )),
+                "/trace.js" => Ok((
+                    include_bytes!("../web/trace.js").to_vec(),
                     "text/javascript; charset=utf-8",
                 )),
                 "/api/checkpoints" | "/api/checkpoint" | "/api/tensor-tile" => Ok((
@@ -601,6 +658,10 @@ fn serve(root: &Path, port: u16, checkpoints: &[PathBuf]) -> Result<()> {
                 .with_header(tiny_http::Header::from_bytes("Content-Type", kind).unwrap()),
             Err(e) => tiny_http::Response::from_string(e.to_string()).with_status_code(400),
         };
+        let response = response
+            .with_header(tiny_http::Header::from_bytes("Cache-Control", "no-store").unwrap())
+            .with_header(tiny_http::Header::from_bytes("X-Content-Type-Options", "nosniff").unwrap())
+            .with_header(tiny_http::Header::from_bytes("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; object-src 'none'; frame-ancestors 'none'; form-action 'none'; base-uri 'none'").unwrap());
         let _ = request.respond(response);
     }
     Ok(())
@@ -670,11 +731,15 @@ fn mcp_result(request: &Value) -> Result<Value> {
             json!({"tools":[{"name":"assess_checkpoint","description":"Full numerical health and optional reference comparison","inputSchema":{"type":"object","properties":{"path":{"type":"string"},"reference":{"type":"string"}},"required":["path"]}},
                 {"name":"tensor_slice","description":"Read a bounded flattened slice of actual tensor values","inputSchema":{"type":"object","properties":{"path":{"type":"string"},"tensor":{"type":"string"},"offset":{"type":"integer","minimum":0},"count":{"type":"integer","minimum":0,"maximum":4096}},"required":["path","tensor"]}},
                 {"name":"checkpoint_graph","description":"Inspect every stored tensor and validated Qwen2 architecture topology","inputSchema":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}},
+                {"name":"activation_trace","description":"Read a bounded, filtered page of recorded runtime activation observations without loading a model","inputSchema":{"type":"object","properties":{"path":{"type":"string"},"stage":{"type":"string","enum":["reference","candidate","repaired"]},"evaluation":{"type":"integer","minimum":0},"step":{"type":"integer","minimum":0},"module_prefix":{"type":"string"},"nonfinite_only":{"type":"boolean"},"offset":{"type":"integer","minimum":0},"count":{"type":"integer","minimum":1,"maximum":128}},"required":["path"]}},
                 {"name":"tensor_tile","description":"Read a bounded matrix tile with exact raw bytes and optional reference differences","inputSchema":{"type":"object","properties":{"path":{"type":"string"},"reference":{"type":"string"},"tensor":{"type":"string"},"row":{"type":"integer","minimum":0},"column":{"type":"integer","minimum":0},"rows":{"type":"integer","minimum":1,"maximum":64},"columns":{"type":"integer","minimum":1,"maximum":64}},"required":["path","tensor"]}}]}),
         ),
         "tools/call" => {
             let result = (|| -> Result<Value> {
                 let a = &params["arguments"];
+                if params["name"] == "activation_trace" {
+                    return trace_report::read(a);
+                }
                 if params["name"] == "checkpoint_graph" {
                     return atlas::graph(Path::new(a["path"].as_str().context("Missing path")?));
                 }
@@ -706,6 +771,22 @@ fn mcp_result(request: &Value) -> Result<Value> {
 }
 fn main() -> Result<()> {
     match Cli::parse().command {
+        Command::TraceSlice {
+            path,
+            stage,
+            evaluation,
+            step,
+            module_prefix,
+            nonfinite_only,
+            offset,
+            count,
+        } => {
+            let mut args = json!({"path":path,"evaluation":evaluation,"step":step,"module_prefix":module_prefix,"nonfinite_only":nonfinite_only,"offset":offset,"count":count});
+            if let Some(stage) = stage {
+                args["stage"] = json!(stage);
+            }
+            println!("{}", trace_report::read(&args)?);
+        }
         Command::Graph { path, output } => {
             ensure!(!output.exists(), "Graph output must be a new file");
             let report = atlas::graph(&path)?;
@@ -752,6 +833,7 @@ fn main() -> Result<()> {
             prompt,
             max_new_tokens,
             dtype,
+            trace,
             output,
         } => {
             ensure!(
@@ -765,7 +847,8 @@ fn main() -> Result<()> {
                     ("candidate", candidate.as_path()),
                     ("repaired", repaired.as_path()),
                 ];
-                let result = inference::compare(&stages, &assets, &prompt, max_new_tokens, &dtype)?;
+                let result =
+                    inference::compare(&stages, &assets, &prompt, max_new_tokens, &dtype, trace)?;
                 write_json(&output, &result)?;
                 println!(
                     "{}",
@@ -782,6 +865,7 @@ fn main() -> Result<()> {
                     prompt,
                     max_new_tokens,
                     dtype,
+                    trace,
                 );
                 bail!(
                     "Build full-model evaluation with cargo build --release --features inference"
@@ -794,12 +878,14 @@ fn main() -> Result<()> {
             prompt,
             max_new_tokens,
             dtype,
+            trace,
             output,
         } => {
             ensure!(!output.exists(), "Evaluation output must be a new file");
             #[cfg(feature = "inference")]
             {
-                let report = inference::evaluate(&model, &assets, &prompt, max_new_tokens, &dtype)?;
+                let report =
+                    inference::evaluate(&model, &assets, &prompt, max_new_tokens, &dtype, trace)?;
                 write_json(&output, &report)?;
                 println!(
                     "{}",
@@ -808,7 +894,7 @@ fn main() -> Result<()> {
             }
             #[cfg(not(feature = "inference"))]
             {
-                let _ = (model, assets, prompt, max_new_tokens, dtype);
+                let _ = (model, assets, prompt, max_new_tokens, dtype, trace);
                 bail!(
                     "Build full-model evaluation with cargo build --release --features inference"
                 );
@@ -888,6 +974,27 @@ fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn viewer_rejects_rebinding_hosts_and_cross_origin_requests() {
+        assert!(validate_viewer_origin(Some("127.0.0.1:8765"), None, 8765).is_ok());
+        assert!(validate_viewer_origin(
+            Some("localhost:8765"),
+            Some("http://localhost:8765"),
+            8765
+        )
+        .is_ok());
+        assert!(validate_viewer_origin(Some("localhost"), None, 80).is_ok());
+        assert!(validate_viewer_origin(None, None, 8765).is_err());
+        assert!(validate_viewer_origin(Some("rebind.example:8765"), None, 8765).is_err());
+        assert!(validate_viewer_origin(Some("localhost:9999"), None, 8765).is_err());
+        assert!(validate_viewer_origin(
+            Some("localhost:8765"),
+            Some("https://attacker.example"),
+            8765
+        )
+        .is_err());
+        assert!(validate_viewer_origin(Some("localhost:8765"), Some("null"), 8765).is_err());
+    }
     #[test]
     fn fault_localization_and_forward_recovery() {
         let dir = tempfile::tempdir().unwrap();

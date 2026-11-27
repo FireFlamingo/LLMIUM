@@ -29,6 +29,7 @@ Open [the local viewer](http://127.0.0.1:8765). If the generated run directories
 6. Open `qwen-runtime/comparison.json` from runs or `qwen-runtime.json` from examples. Show verified recovery and 455,808 candidate nonfinite logits across three prompt evaluations. The clean and repaired continuation for `The capital of France is` is ` Paris. The capital`. The candidate stops on nonfinite logits. Expand token and logit evidence to show exact restored hashes. The first prompt was repeated after a different request and produced the same healthy outputs.
 7. Explain that the MCP interface lets an agent request an assessment or read a bounded tensor slice. The trusted reference supplies the restoration bytes.
 8. Choose registered checkpoint 1 and click Inspect checkpoint. Select layer 0, then its Q projection module. Set Compare to checkpoint 0. Show the orange weight at row 0, column 0, its raw bytes and its connection line. Select checkpoint 2 and repeat the comparison to show zero changed cells in the restored tile. Use flat-index and page controls to inspect other parameter coordinates.
+9. For a recorded activation comparison, open Recorded activation trace on a candidate runtime card. Show the first observed nonfinite output and inspect projection and downstream observations. Show execution on checkpoint graph overlays those observations on the registered checkpoint's modules. Explain that the recorded execution and parameter differences together support this controlled fault localization; arbitrary semantic defects require additional analysis.
 
 ## Reproduce the experiment
 
@@ -39,6 +40,8 @@ Use fresh output paths. Assessment reads every supported parameter. Model copies
 ./target/release/llmium experiment models/Qwen2.5-1.5B-Instruct --tensor model.layers.0.self_attn.q_proj.weight --output runs/presentation-experiment
 RAYON_NUM_THREADS=2 ./target/release/llmium runtime-compare --reference models/Qwen2.5-1.5B-Instruct --candidate runs/presentation-experiment/candidate --repaired runs/presentation-experiment/repaired --assets models/Qwen2.5-1.5B-Instruct --prompt 'The capital of France is' --prompt 'Two plus two equals' --prompt 'The capital of France is' --max-new-tokens 4 --output runs/presentation-runtime.json
 ```
+
+To record intermediate execution, add `--trace` to the runtime command and use a fresh output path. A two-token limit is enough to show prefill and one cached decoding step on healthy checkpoints. Tracing supports up to 256 input tokens and 16 generation steps; the candidate stops when logits become nonfinite. The viewer keeps trace tables paged and filterable.
 
 ## Questions to anticipate
 

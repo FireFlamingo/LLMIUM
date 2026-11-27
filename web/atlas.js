@@ -18,6 +18,7 @@ window.atlasUI = (() => {
     let modelId = null;
     let layer = null;
     let tile;
+    let execution = null;
     let graphEpoch = 0;
     let tileEpoch = 0;
     let cancelReport = () => {};
@@ -45,9 +46,37 @@ window.atlasUI = (() => {
         }
     }
 
+    async function openExecution(stage, step) {
+        const model = models.find(model => model.path === stage.model_canonical);
+        if (!model) {
+            byId('status').textContent = 'Register the recorded checkpoint with --checkpoint to overlay this execution: ' + (stage.model_canonical || stage.model);
+            return;
+        }
+        cancelReport();cancel();
+        const epoch = graphEpoch;
+        try {
+            const report = await request('/api/checkpoint?model=' + model.id);
+            if (epoch !== graphEpoch) return;
+            if (report.config_sha256 !== stage.config_sha256) throw Error('Recorded configuration hash differs from the registered checkpoint.');
+            show(report, String(model.id));
+            execution = {stage, step};
+            byId('atlas-execution').hidden = false;
+            byId('atlas-execution-summary').textContent = 'Recorded generation step ' + step.step + ' · ' + step.activation_trace.length +
+                ' observed outputs. Green modules had finite recorded outputs; orange modules had nonfinite outputs. The overlay matches the registered path and configuration hash. Weight files are not rehashed by the viewer; keep checkpoints immutable.';
+            byId('atlas-activation').textContent = JSON.stringify({model:stage.model_canonical,files:stage.files,first_nonfinite_activation:step.first_nonfinite_activation}, null, 2);
+            const first = step.first_nonfinite_activation?.module.match(/\.layers\.(\d+)/);
+            if (first) layer = Number(first[1]);
+            renderLayers();renderTensors();
+        } catch (error) {
+            if (epoch === graphEpoch) byId('status').textContent = error.message;
+        }
+    }
+
     function show(report, id) {
         cancel();
         data = report;
+        execution = null;
+        byId('atlas-execution').hidden = true;
         modelId = id;
         if (!Array.isArray(data.tensors) || !Array.isArray(data.layers)) throw Error('Atlas inventory is missing');
         layer = data.layers.length ? data.layers[0].index : null;
@@ -80,8 +109,10 @@ window.atlasUI = (() => {
     function renderLayers() {
         byId('atlas-layers').replaceChildren();
         for (const item of data.layers) {
+            const prefix = 'model.layers.' + item.index;
+            const fault = execution?.step.activation_trace.some(record => (record.module === prefix || record.module.startsWith(prefix + '.')) && record.nonfinite > 0);
             const button = make('button', 'Layer ' + item.index + ' · ' + item.tensors.length + ' tensors',
-                'node' + (layer === item.index ? ' active' : ''));
+                'node' + (layer === item.index ? ' active' : '') + (fault ? ' warn' : ''));
             button.onclick = () => { layer = item.index; byId('atlas-filter').value = ''; renderLayers(); renderTensors(); };
             byId('atlas-layers').append(button);
         }
@@ -117,18 +148,39 @@ window.atlasUI = (() => {
             svg.append(svgNode('path',{d:path,fill:'none',stroke:'#557b7d','stroke-width':2,'stroke-dasharray':edge.residual?'7 5':'none','marker-end':'url(#atlas-arrow)'}));
         }
         for (const node of block.nodes) {
-            const group = svgNode('g',{class:'module'+(byId('atlas-tensor').value === node.tensor ? ' selected' : ''),
-                ...(node.tensor ? {role:'button',tabindex:0,'aria-label':'Inspect '+node.label} : {})});
+            const records = observedOutputs(node);
+            const observedClass = records.length ? (records.some(record=>record.nonfinite > 0) ? ' observed-fault' : ' observed-finite') : '';
+            const group = svgNode('g',{class:'module'+observedClass+(byId('atlas-tensor').value === node.tensor ? ' selected' : ''),
+                ...(node.tensor || records.length ? {role:'button',tabindex:0,'aria-label':'Inspect '+node.label} : {})});
             group.append(svgNode('rect',{x:node.x-123,y:node.y-28,width:246,height:56,rx:7}));
             group.append(svgNode('text',{x:node.x,y:node.y+5,'text-anchor':'middle'},node.label));
-            if (node.tensor) {
-                group.append(svgNode('title',{},node.tensor));
-                const select = () => { byId('atlas-filter').value=''; renderTensors(node.tensor); };
+            if (node.tensor || records.length) {
+                group.append(svgNode('title',{},(node.tensor || node.label) + (records.length ? ' · ' + records.map(record=>record.operation+': '+record.nonfinite+'/'+record.elements+' nonfinite').join('; ') : '')));
+                const select = () => {
+                    if (records.length) byId('atlas-activation').textContent = JSON.stringify(records, null, 2);
+                    if (node.tensor) {byId('atlas-filter').value=''; renderTensors(node.tensor);}
+                };
                 group.onclick = select;
                 group.onkeydown = event => { if (event.key==='Enter'||event.key===' ') { event.preventDefault();select(); } };
             }
             svg.append(group);
         }
+    }
+
+    function observedOutputs(node) {
+        if (!execution) return [];
+        const prefix = 'model.layers.' + layer;
+        const module = node.tensor?.replace(/\.(?:weight|bias)$/, '');
+        return execution.step.activation_trace.filter(record => {
+            if (module) return record.module === module;
+            if (node.id === 'input') return layer === 0 ? record.module === 'model.embed_tokens' :
+                record.module === 'model.layers.'+(layer-1) && record.operation === 'block_output';
+            if (node.id === 'attention') return record.module === prefix+'.self_attn';
+            if (node.id === 'gated') return record.module === prefix+'.mlp' && record.operation === 'gated_product';
+            if (node.id === 'add1') return record.module === prefix && record.operation === 'attention_residual';
+            if (node.id === 'add2' || node.id === 'output') return record.module === prefix && record.operation === 'block_output';
+            return false;
+        });
     }
 
     function renderTensors(preferred) {
@@ -293,5 +345,5 @@ window.atlasUI = (() => {
                 'Register models with llmium serve --checkpoint PATH to inspect actual weights.';
         }catch(error){byId('atlas-open').disabled=true;byId('atlas-registration').textContent=error.message;}
     }
-    return {initialize,show,cancel};
+    return {initialize,show,cancel,openExecution};
 })();

@@ -9,6 +9,7 @@
 </style>
 <style>
 .toolbar>select{max-width:100%}.atlas-controls label{max-width:100%;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.atlas-controls select{min-width:0;max-width:100%}.atlas-columns>.card{min-width:0}@media(max-width:1050px){.atlas-columns{grid-template-columns:minmax(0,1fr)}}
+.atlas-diagram .module.observed-finite rect{fill:#173b32}.atlas-diagram .module.observed-fault rect{fill:#633723;stroke:#ffad76}#atlas-execution{margin:18px 0}
 </style>
 <header><h1>LLMIUM</h1><span>CHECKPOINT OBSERVATORY</span></header>
 <main><h2>Follow the evidence through the weights.</h2><p>Inspect numerical health, localize checkpoint changes, and verify reference restoration.</p>
@@ -17,6 +18,7 @@
 <p id="status" role="status">Loading reports…</p>
 <section id="atlas" hidden>
 <h3>Network and parameter explorer</h3><p id="atlas-summary"></p><p id="atlas-basis" class="atlas-note"></p>
+<section id="atlas-execution" class="card" hidden><h3>Recorded execution overlay</h3><p id="atlas-execution-summary"></p><pre id="atlas-activation">Select an observed module to inspect recorded output statistics.</pre></section>
 <section class="card"><h3>Model dataflow</h3><div id="atlas-endpoints" class="atlas-group"></div><div id="atlas-layers" class="graph"></div></section>
 <div class="atlas-columns">
 <section class="card"><h3 id="atlas-block-heading">Decoder block</h3><div class="atlas-scroll"><svg id="atlas-block" class="atlas-diagram" viewBox="0 0 900 1260" role="img" aria-label="Decoder block dataflow"></svg></div><p class="atlas-note">Select a parameterized module to inspect its weights. Arrows describe the architecture adapter's dataflow. Residual paths run along the sides.</p></section>
@@ -39,6 +41,7 @@
 <section class="card"><div class="toolbar"><h3>Tensor inventory</h3><input id="search" placeholder="Filter tensor names" aria-label="Filter tensor names"></div><div id="tablewrap"><table><thead><tr><th>Tensor</th><th>Shape</th><th>Type</th><th>Nonfinite</th><th>Changed</th></tr></thead><tbody id="rows"></tbody></table></div></section>
 </div></main>
 <script src="/atlas.js"></script>
+<script src="/trace.js"></script>
 <script>
 let documentData;
 let report;
@@ -74,8 +77,10 @@ function renderRuntime() {
     $('runtime-evaluations').replaceChildren();
     for (const [label, stage] of stages) {
       if (!Array.isArray(stage.evaluations)) throw Error('Runtime report has no evaluations');
-      for (const evaluation of stage.evaluations) {
+      for (const [promptIndex, evaluation] of stage.evaluations.entries()) {
         const card = element('section', '', 'card');
+        card.dataset.stage = label;
+        card.dataset.promptIndex = promptIndex;
         card.style.marginBottom = '18px';
         card.append(element('p', label.toUpperCase() + ' · ' + stage.dtype, 'label'));
         card.append(element('h3', evaluation.prompt));
@@ -87,12 +92,19 @@ function renderRuntime() {
         evidence.append(element('pre', JSON.stringify({
             input_token_ids: evaluation.input_token_ids,
             generated_token_ids: evaluation.generated_token_ids,
-            steps: evaluation.steps,
+            steps: evaluation.steps.map(({activation_trace, ...step}) => step),
             elapsed_seconds: evaluation.elapsed_seconds
         }, null, 2)));
         card.append(evidence);
+        window.traceUI.attach(card, stage, evaluation);
         $('runtime-evaluations').append(card);
       }
+    }
+    if (comparison && documentData.activation_comparison) {
+        const comparison = element('details', '');
+        comparison.append(element('summary', 'Activation comparison evidence'));
+        comparison.append(element('pre', JSON.stringify(documentData.activation_comparison, null, 2)));
+        $('runtime-evaluations').append(comparison);
     }
     $('runtime-evaluations').append(element('p', documentData.interpretation));
 }

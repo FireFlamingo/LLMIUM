@@ -28,6 +28,8 @@ The completed Qwen2.5 1.5B Instruct experiment covers 338 tensors and 1,543,714,
 
 General semantic vulnerability discovery, automatic trigger identification, causal interpretation of individual neurons and tenant isolation assessment remain research work. The checkpoint atlas inventories every stored tensor and validates a Qwen2 architecture-derived module graph. Its connection diagrams read actual bounded matrix tiles with exact bytes and optional reference comparison. They describe selected parameter coordinates and declared architecture dataflow. Statistical classification and cryptographic provenance verification require additional implementation and evaluation.
 
+The optional instrumented Qwen2 adapter records actual intermediate outputs at embedding, normalization, projection, attention, residual and MLP boundaries. Controlled trace comparisons identify the first changed recorded output and check all restored observations. This gives numerical execution evidence at the instrumented boundaries. It does not identify a unique causal parameter from arbitrary behavioral changes or infer semantic neuron roles. Differential tests compare the traced forward path to Candle 0.11.1 with F32/BF16, tied/untied heads, prefill, decoding and cache resets; third-party source attribution is in [THIRD_PARTY.md](THIRD_PARTY.md).
+
 ## Evaluation plan
 
 Measure clean baselines, seeded faults, legitimate fine-tunes and dtype conversions separately. Report coverage, elapsed time, memory, false positives and missed cases. Calibrate statistical thresholds on independent data before testing. Validate behavioral claims using held-out inputs. A clean numerical scan covers the implemented checks.

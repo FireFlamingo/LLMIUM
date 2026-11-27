@@ -32,7 +32,7 @@ Repair requires a new output directory and a compatible trusted reference. It re
 
 ## Agent interface
 
-Run `llmium mcp` as a stdio MCP server. It exposes `assess_checkpoint` with a required `path` and optional `reference`, plus `tensor_slice` for bounded reads of actual tensor values. The slice tool requires `path` and `tensor`, and accepts `offset` and `count` up to 4096 elements. `checkpoint_graph` returns the complete tensor inventory and validated Qwen2 module topology. `tensor_tile` accepts a matrix `row`, `column`, `rows` and `columns`, with each tile dimension between 1 and 64, and an optional `reference` checkpoint. It includes exact raw bytes and changed-cell flags. The server uses newline-delimited JSON-RPC and MCP protocol version 2024-11-05. Paths use the server's filesystem. An agent host can launch the WSL binary with a configuration like this.
+Run `llmium mcp` as a stdio MCP server. It exposes `assess_checkpoint` with a required `path` and optional `reference`, plus `tensor_slice` for bounded reads of actual tensor values. The slice tool requires `path` and `tensor`, and accepts `offset` and `count` up to 4096 elements. `checkpoint_graph` returns the complete tensor inventory and validated Qwen2 module topology. `tensor_tile` accepts a matrix `row`, `column`, `rows` and `columns`, with each tile dimension between 1 and 64, and an optional `reference` checkpoint. It includes exact raw bytes and changed-cell flags. `activation_trace` reads filtered, paged observations from saved runtime reports without loading weights. It accepts `path`, an optional comparison `stage` (default candidate), `evaluation`, `step`, `module_prefix`, `nonfinite_only`, `offset` and `count` (1–128, default 32). Report files are limited to 64 MiB. The server uses newline-delimited JSON-RPC and MCP protocol version 2024-11-05. Paths use the server's filesystem. An agent host can launch the WSL binary with a configuration like this.
 
 ```json
 {
@@ -82,6 +82,26 @@ RAYON_NUM_THREADS=2 ./target/release/llmium runtime-compare --reference models/Q
 ```
 
 Use a new output filename for each run. The report binds observations to checkpoint, configuration and tokenizer hashes. Verified recovery requires matching checkpoint hashes, identical generated tokens and logit hashes, and finite reference and repaired logits. Open runtime reports in the same local viewer. This adapter evaluates raw prompt continuations. Apply a model's chat template explicitly when evaluating chat behavior.
+
+## Trace numerical fault propagation
+
+Add `--trace` to `evaluate` or `runtime-compare` to record ordered intermediate outputs from an instrumented Qwen2 forward path. Each observation includes its module and operation, shape, dtype, nonfinite count and coordinates, finite-value statistics, a row-major F32 hash and eight leading values. Attention scores are observed before masking, and probabilities after softmax, so intentional mask infinities are excluded from numerical-fault counts.
+
+```bash
+RAYON_NUM_THREADS=2 ./target/release/llmium runtime-compare --reference models/Qwen2.5-1.5B-Instruct --candidate runs/qwen-rust-buffered/candidate --repaired runs/qwen-rust-buffered/repaired --assets models/Qwen2.5-1.5B-Instruct --prompt 'The capital of France is' --prompt 'Two plus two equals' --prompt 'The capital of France is' --max-new-tokens 2 --trace --output runs/qwen-activation/comparison.json
+```
+
+Tracing supports up to 256 input tokens per prompt and 16 generated steps. It adds observation overhead and retains summaries rather than complete activation tensors. Comparison reports identify the first changed recorded output and test exact recovery of every recorded observation. Runtime settings, tokenizer and configuration hashes must match across comparison stages for verified recovery.
+
+Inspect a bounded page natively, including in builds without the inference feature. Omit `--stage` for single evaluation reports. Pagination offsets apply after filtering.
+
+```bash
+./target/release/llmium trace-slice runs/qwen-activation/comparison.json --stage candidate --evaluation 0 --step 0 --module-prefix model.layers.0.self_attn --nonfinite-only --count 8
+```
+
+Open Recorded activation trace within a runtime card to filter and page through observations. Select a row for coordinates and hashes. Show execution on checkpoint graph overlays recorded finite and nonfinite outputs on the registered checkpoint's modules. The overlay checks the recorded canonical path and configuration hash; the viewer does not rehash the weights. Preserve immutable checkpoint files and use the recorded file hashes for provenance.
+
+The instrumented forward path is derived from Candle 0.11.1 and tested against its unmodified Qwen2 implementation for F32/BF16, tied/untied heads, prefill, decoding and cache resets. See [third_party/CANDLE-LICENSE-MIT](third_party/CANDLE-LICENSE-MIT) and [THIRD_PARTY.md](THIRD_PARTY.md). An observed numerical boundary alone does not establish a unique causal weight or explain neuron semantics.
 
 ## Verification
 
