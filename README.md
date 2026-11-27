@@ -15,6 +15,31 @@ cd /mnt/d/Projects/LLMIUM
 
 Open http://127.0.0.1:8765 and select `rust-demo/demo.json`. Inspect layer 2 and the affected tensor, then switch to After repair. The Rust demo seeds one NaN in a synthetic module, performs actual linear forward computations and checks exact output recovery.
 
+## Select, edit and rerun a connection
+
+Enable the interactive experiment controls explicitly and register the fixture alongside the real model.
+
+```bash
+RAYON_NUM_THREADS=2 ./target/release/llmium serve --root runs --allow-edits --checkpoint models/Qwen2.5-1.5B-Instruct --checkpoint runs/qwen-rust-buffered/candidate --checkpoint runs/qwen-rust-buffered/repaired --checkpoint runs/qwen-finite/candidate --checkpoint runs/qwen-finite/repaired --checkpoint runs/rust-demo/reference.safetensors
+```
+
+Choose **Inspect sample fixture**, layer 2 and `model.layers.2.mlp.down_proj.weight`. Set tile size to 8 and jump to flat index 459. Hover a connection for its exact coordinate; click it or focus it and press Enter to select the parameter. Its editor shows the value, dtype and raw bytes. Set the value to `100`, choose **Selected tensor probe**, and run the experiment. The saved comparison shows changed outputs and verified restoration. **Open experiment evidence** displays the new demonstration; **Inspect edited checkpoint** opens the generated candidate.
+
+Edits create new checkpoint copies beneath `runs/lab`; the registered source is preserved. Jobs run serially and save progress to disk. Selected tensor probes use eight deterministic inputs and support vectors or matrices up to 20 million parameters. They measure that tensor's computation. **Full Qwen generation** instead runs the complete reference, candidate and restored Qwen2/2.5 models with the chosen prompt and 1–16 generated tokens. Build with `--features inference`, allow disk space for two model copies and expect several minutes of CPU work. Server restarts do not resume interrupted jobs; completed reports remain readable.
+
+The workbench uses locally bundled Manrope and IBM Plex Mono fonts; see `THIRD_PARTY.md`. The overview, weight explorer, evidence, agent setup and project documents share the same charcoal and amber interface.
+
+## Presentation documents
+
+The six-page [demo guide](output/pdf/demo-guide.pdf) gives setup, connection editing and real-model presentation steps. The six-page [project overview](output/pdf/project-overview.pdf) covers the introduction, problem, solution, architecture, measured results and research goals. Both are available from **Project & demo** in the local workbench.
+
+Rebuild them using the Rust-based Typst CLI, with no Python dependency:
+
+```bash
+typst compile --root . --font-path web/fonts documents/demo-guide.typ output/pdf/demo-guide.pdf
+typst compile --root . --font-path web/fonts documents/project-overview.typ output/pdf/project-overview.pdf
+```
+
 ## Assess and restore
 
 ```bash

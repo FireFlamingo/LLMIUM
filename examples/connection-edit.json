@@ -1,0 +1,622 @@
+{
+  "after": {
+    "checkpoint": "/mnt/d/Projects/LLMIUM/runs/lab/1795810371438-0/repaired",
+    "coverage": "All supported tensor elements scanned",
+    "files": [
+      {
+        "bytes": 197840,
+        "name": "reference.safetensors",
+        "sha256": "97640536258ad16e001f982ca1896eb79b7875e0250cc6bd58430181d935be77"
+      }
+    ],
+    "findings": [],
+    "interpretation": "Numerical health and reference differences require behavioral validation. Reference trust is supplied by the operator.",
+    "parameters": 49152,
+    "reference": "/mnt/d/Projects/LLMIUM/runs/rust-demo/reference.safetensors",
+    "schema_version": 1,
+    "tensors": [
+      {
+        "bytes": 16384,
+        "changed_elements": 0,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 0.0,
+        "first_changed_indices": [],
+        "max_abs": 0.029999999329447746,
+        "mean": -6.836661577303005e-6,
+        "name": "model.layers.0.mlp.down_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 0.021210810441432453,
+        "sha256": "17a03f563e7b28bb27bad9d10f95fd4c232157ca297b7fce07908ce6f69a0c00",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 1
+      },
+      {
+        "bytes": 16384,
+        "changed_elements": 0,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 0.0,
+        "first_changed_indices": [],
+        "max_abs": 0.029999999329447746,
+        "mean": -6.836661577303005e-6,
+        "name": "model.layers.0.self_attn.q_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 0.021210810441432453,
+        "sha256": "17a03f563e7b28bb27bad9d10f95fd4c232157ca297b7fce07908ce6f69a0c00",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 1
+      },
+      {
+        "bytes": 16384,
+        "changed_elements": 0,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 0.0,
+        "first_changed_indices": [],
+        "max_abs": 0.029999999329447746,
+        "mean": -6.836661577303005e-6,
+        "name": "model.layers.0.self_attn.v_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 0.021210810441432453,
+        "sha256": "17a03f563e7b28bb27bad9d10f95fd4c232157ca297b7fce07908ce6f69a0c00",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 1
+      },
+      {
+        "bytes": 16384,
+        "changed_elements": 0,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 0.0,
+        "first_changed_indices": [],
+        "max_abs": 0.029999999329447746,
+        "mean": 2.3235722608205833e-6,
+        "name": "model.layers.1.mlp.down_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 0.021215274660259062,
+        "sha256": "732664fd8b480e22dc1b1f3e1081d6be41be916d8c513e2bc1e055822dcb4795",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 0
+      },
+      {
+        "bytes": 16384,
+        "changed_elements": 0,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 0.0,
+        "first_changed_indices": [],
+        "max_abs": 0.029999999329447746,
+        "mean": 2.3235722608205833e-6,
+        "name": "model.layers.1.self_attn.q_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 0.021215274660259062,
+        "sha256": "732664fd8b480e22dc1b1f3e1081d6be41be916d8c513e2bc1e055822dcb4795",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 0
+      },
+      {
+        "bytes": 16384,
+        "changed_elements": 0,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 0.0,
+        "first_changed_indices": [],
+        "max_abs": 0.029999999329447746,
+        "mean": 2.3235722608205833e-6,
+        "name": "model.layers.1.self_attn.v_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 0.021215274660259062,
+        "sha256": "732664fd8b480e22dc1b1f3e1081d6be41be916d8c513e2bc1e055822dcb4795",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 0
+      },
+      {
+        "bytes": 16384,
+        "changed_elements": 0,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 0.0,
+        "first_changed_indices": [],
+        "max_abs": 0.029999999329447746,
+        "mean": 4.360504565426027e-6,
+        "name": "model.layers.2.mlp.down_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 0.02121380455683033,
+        "sha256": "f487f1a65e00f46f100e5921894c3dbd91ba9c25f004280063c3c1583924327d",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 0
+      },
+      {
+        "bytes": 16384,
+        "changed_elements": 0,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 0.0,
+        "first_changed_indices": [],
+        "max_abs": 0.029999999329447746,
+        "mean": 4.360504565426027e-6,
+        "name": "model.layers.2.self_attn.q_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 0.02121380455683033,
+        "sha256": "f487f1a65e00f46f100e5921894c3dbd91ba9c25f004280063c3c1583924327d",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 0
+      },
+      {
+        "bytes": 16384,
+        "changed_elements": 0,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 0.0,
+        "first_changed_indices": [],
+        "max_abs": 0.029999999329447746,
+        "mean": 4.360504565426027e-6,
+        "name": "model.layers.2.self_attn.v_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 0.02121380455683033,
+        "sha256": "f487f1a65e00f46f100e5921894c3dbd91ba9c25f004280063c3c1583924327d",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 0
+      },
+      {
+        "bytes": 16384,
+        "changed_elements": 0,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 0.0,
+        "first_changed_indices": [],
+        "max_abs": 0.029999999329447746,
+        "mean": -6.970418018004132e-6,
+        "name": "model.layers.3.mlp.down_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 0.02121061099541519,
+        "sha256": "52ead9dd473de158e82f24506d5983710afd0d1e93d54da65d5953ae1d192bb3",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 0
+      },
+      {
+        "bytes": 16384,
+        "changed_elements": 0,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 0.0,
+        "first_changed_indices": [],
+        "max_abs": 0.029999999329447746,
+        "mean": -6.970418018004132e-6,
+        "name": "model.layers.3.self_attn.q_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 0.02121061099541519,
+        "sha256": "52ead9dd473de158e82f24506d5983710afd0d1e93d54da65d5953ae1d192bb3",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 0
+      },
+      {
+        "bytes": 16384,
+        "changed_elements": 0,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 0.0,
+        "first_changed_indices": [],
+        "max_abs": 0.029999999329447746,
+        "mean": -6.970418018004132e-6,
+        "name": "model.layers.3.self_attn.v_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 0.02121061099541519,
+        "sha256": "52ead9dd473de158e82f24506d5983710afd0d1e93d54da65d5953ae1d192bb3",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 0
+      }
+    ]
+  },
+  "before": {
+    "checkpoint": "/mnt/d/Projects/LLMIUM/runs/lab/1795810371438-0/candidate",
+    "coverage": "All supported tensor elements scanned",
+    "files": [
+      {
+        "bytes": 197840,
+        "name": "reference.safetensors",
+        "sha256": "cca52073c4dba8aa68abc758d4fd5a21ca475419e18efa382dd9f52c0fb17594"
+      }
+    ],
+    "findings": [
+      {
+        "confidence": "measured",
+        "evidence": "1 elements differ from supplied reference",
+        "rule": "REFERENCE_DRIFT",
+        "severity": "review",
+        "tensor": "model.layers.2.mlp.down_proj.weight"
+      }
+    ],
+    "interpretation": "Numerical health and reference differences require behavioral validation. Reference trust is supplied by the operator.",
+    "parameters": 49152,
+    "reference": "/mnt/d/Projects/LLMIUM/runs/rust-demo/reference.safetensors",
+    "schema_version": 1,
+    "tensors": [
+      {
+        "bytes": 16384,
+        "changed_elements": 0,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 0.0,
+        "first_changed_indices": [],
+        "max_abs": 0.029999999329447746,
+        "mean": -6.836661577303005e-6,
+        "name": "model.layers.0.mlp.down_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 0.021210810441432453,
+        "sha256": "17a03f563e7b28bb27bad9d10f95fd4c232157ca297b7fce07908ce6f69a0c00",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 1
+      },
+      {
+        "bytes": 16384,
+        "changed_elements": 0,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 0.0,
+        "first_changed_indices": [],
+        "max_abs": 0.029999999329447746,
+        "mean": -6.836661577303005e-6,
+        "name": "model.layers.0.self_attn.q_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 0.021210810441432453,
+        "sha256": "17a03f563e7b28bb27bad9d10f95fd4c232157ca297b7fce07908ce6f69a0c00",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 1
+      },
+      {
+        "bytes": 16384,
+        "changed_elements": 0,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 0.0,
+        "first_changed_indices": [],
+        "max_abs": 0.029999999329447746,
+        "mean": -6.836661577303005e-6,
+        "name": "model.layers.0.self_attn.v_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 0.021210810441432453,
+        "sha256": "17a03f563e7b28bb27bad9d10f95fd4c232157ca297b7fce07908ce6f69a0c00",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 1
+      },
+      {
+        "bytes": 16384,
+        "changed_elements": 0,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 0.0,
+        "first_changed_indices": [],
+        "max_abs": 0.029999999329447746,
+        "mean": 2.3235722608205833e-6,
+        "name": "model.layers.1.mlp.down_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 0.021215274660259062,
+        "sha256": "732664fd8b480e22dc1b1f3e1081d6be41be916d8c513e2bc1e055822dcb4795",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 0
+      },
+      {
+        "bytes": 16384,
+        "changed_elements": 0,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 0.0,
+        "first_changed_indices": [],
+        "max_abs": 0.029999999329447746,
+        "mean": 2.3235722608205833e-6,
+        "name": "model.layers.1.self_attn.q_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 0.021215274660259062,
+        "sha256": "732664fd8b480e22dc1b1f3e1081d6be41be916d8c513e2bc1e055822dcb4795",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 0
+      },
+      {
+        "bytes": 16384,
+        "changed_elements": 0,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 0.0,
+        "first_changed_indices": [],
+        "max_abs": 0.029999999329447746,
+        "mean": 2.3235722608205833e-6,
+        "name": "model.layers.1.self_attn.v_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 0.021215274660259062,
+        "sha256": "732664fd8b480e22dc1b1f3e1081d6be41be916d8c513e2bc1e055822dcb4795",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 0
+      },
+      {
+        "bytes": 16384,
+        "changed_elements": 1,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 99.97108083963394,
+        "first_changed_indices": [
+          459
+        ],
+        "max_abs": 100.0,
+        "mean": 0.02441136266267918,
+        "name": "model.layers.2.mlp.down_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 1.5626439361942377,
+        "sha256": "e75b97f3a4337a3903f0e973309635b0e562058d5987f4f420287dcf829d509e",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 0
+      },
+      {
+        "bytes": 16384,
+        "changed_elements": 0,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 0.0,
+        "first_changed_indices": [],
+        "max_abs": 0.029999999329447746,
+        "mean": 4.360504565426027e-6,
+        "name": "model.layers.2.self_attn.q_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 0.02121380455683033,
+        "sha256": "f487f1a65e00f46f100e5921894c3dbd91ba9c25f004280063c3c1583924327d",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 0
+      },
+      {
+        "bytes": 16384,
+        "changed_elements": 0,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 0.0,
+        "first_changed_indices": [],
+        "max_abs": 0.029999999329447746,
+        "mean": 4.360504565426027e-6,
+        "name": "model.layers.2.self_attn.v_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 0.02121380455683033,
+        "sha256": "f487f1a65e00f46f100e5921894c3dbd91ba9c25f004280063c3c1583924327d",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 0
+      },
+      {
+        "bytes": 16384,
+        "changed_elements": 0,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 0.0,
+        "first_changed_indices": [],
+        "max_abs": 0.029999999329447746,
+        "mean": -6.970418018004132e-6,
+        "name": "model.layers.3.mlp.down_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 0.02121061099541519,
+        "sha256": "52ead9dd473de158e82f24506d5983710afd0d1e93d54da65d5953ae1d192bb3",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 0
+      },
+      {
+        "bytes": 16384,
+        "changed_elements": 0,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 0.0,
+        "first_changed_indices": [],
+        "max_abs": 0.029999999329447746,
+        "mean": -6.970418018004132e-6,
+        "name": "model.layers.3.self_attn.q_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 0.02121061099541519,
+        "sha256": "52ead9dd473de158e82f24506d5983710afd0d1e93d54da65d5953ae1d192bb3",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 0
+      },
+      {
+        "bytes": 16384,
+        "changed_elements": 0,
+        "dtype": "F32",
+        "finite": 4096,
+        "finite_delta_l2": 0.0,
+        "first_changed_indices": [],
+        "max_abs": 0.029999999329447746,
+        "mean": -6.970418018004132e-6,
+        "name": "model.layers.3.self_attn.v_proj.weight",
+        "nonfinite": 0,
+        "parameters": 4096,
+        "rms": 0.02121061099541519,
+        "sha256": "52ead9dd473de158e82f24506d5983710afd0d1e93d54da65d5953ae1d192bb3",
+        "shape": [
+          64,
+          64
+        ],
+        "zeros": 0
+      }
+    ]
+  },
+  "exact_forward_recovery": true,
+  "experiment": "User-selected finite parameter experiment",
+  "flat_index": 459,
+  "forward_pass": {
+    "candidate": {
+      "elements": 512,
+      "f32_sha256": "342c83f947a037d974dc98c036ca8690fb12f3f1edc2719fded088db71da95a1",
+      "first_values": [
+        0.01197812333703041,
+        0.030631765723228455,
+        0.020660441368818283,
+        -0.008617814630270004,
+        -0.029842831194400787,
+        -0.02318011224269867,
+        0.005144126713275909,
+        0.4711029827594757
+      ],
+      "nonfinite_outputs": 0
+    },
+    "changed_outputs": 8,
+    "maximum_absolute_delta": 99.90855407714844,
+    "reference": {
+      "elements": 512,
+      "f32_sha256": "d624e63f5a80d80d7398578ce78bdb0b82cc666bc002edf0aa3beef7e4a9a42e",
+      "first_values": [
+        0.01197812333703041,
+        0.030631765723228455,
+        0.020660441368818283,
+        -0.008617814630270004,
+        -0.029842831194400787,
+        -0.02318011224269867,
+        0.005144126713275909,
+        0.028661230579018593
+      ],
+      "nonfinite_outputs": 0
+    },
+    "repaired": {
+      "elements": 512,
+      "f32_sha256": "d624e63f5a80d80d7398578ce78bdb0b82cc666bc002edf0aa3beef7e4a9a42e",
+      "first_values": [
+        0.01197812333703041,
+        0.030631765723228455,
+        0.020660441368818283,
+        -0.008617814630270004,
+        -0.029842831194400787,
+        -0.02318011224269867,
+        0.005144126713275909,
+        0.028661230579018593
+      ],
+      "nonfinite_outputs": 0
+    }
+  },
+  "limits": "Deliberate checkpoint-copy edit. Selected-parameter probes use deterministic synthetic inputs and do not measure language-model quality. Full generation is measured only when explicitly selected.",
+  "recovery_verified": true,
+  "repair": {
+    "output": "/mnt/d/Projects/LLMIUM/runs/lab/1795810371438-0/repaired",
+    "reference": "/mnt/d/Projects/LLMIUM/runs/rust-demo/reference.safetensors",
+    "reference_files": [
+      {
+        "bytes": 197840,
+        "name": "reference.safetensors",
+        "sha256": "97640536258ad16e001f982ca1896eb79b7875e0250cc6bd58430181d935be77"
+      }
+    ],
+    "restored": [
+      "model.layers.2.mlp.down_proj.weight"
+    ],
+    "verified": true
+  },
+  "seed": {
+    "dtype": "F32",
+    "factor": null,
+    "flat_index": 459,
+    "interpretation": "Deliberately seeded finite parameter change in a new checkpoint copy. Behavioral impact must be measured separately; this operation does not establish a naturally occurring vulnerability.",
+    "operation": "finite_parameter_set",
+    "original_raw_le_hex": "e0e7ec3c",
+    "original_value": 0.02891916036605835,
+    "output": "/mnt/d/Projects/LLMIUM/runs/lab/1795810371438-0/candidate",
+    "reference": "/mnt/d/Projects/LLMIUM/runs/rust-demo/reference.safetensors",
+    "requested_value": 100.0,
+    "schema_version": 1,
+    "seeded_fault": true,
+    "seeded_tensor_sha256": "e75b97f3a4337a3903f0e973309635b0e562058d5987f4f420287dcf829d509e",
+    "shape": [
+      64,
+      64
+    ],
+    "source_tensor_sha256": "f487f1a65e00f46f100e5921894c3dbd91ba9c25f004280063c3c1583924327d",
+    "stored_raw_le_hex": "0000c842",
+    "stored_value": 100.0,
+    "tensor": "model.layers.2.mlp.down_proj.weight"
+  },
+  "seeded_fault": true,
+  "target": "model.layers.2.mlp.down_proj.weight"
+}

@@ -10,7 +10,7 @@ From Kali WSL, use the existing reports for a quick presentation. The reports co
 
 ```bash
 cd /mnt/d/Projects/LLMIUM
-./target/release/llmium serve --root runs --checkpoint models/Qwen2.5-1.5B-Instruct --checkpoint runs/qwen-rust-buffered/candidate --checkpoint runs/qwen-rust-buffered/repaired
+RAYON_NUM_THREADS=2 ./target/release/llmium serve --root runs --allow-edits --checkpoint models/Qwen2.5-1.5B-Instruct --checkpoint runs/qwen-rust-buffered/candidate --checkpoint runs/qwen-rust-buffered/repaired --checkpoint runs/qwen-finite/candidate --checkpoint runs/qwen-finite/repaired --checkpoint runs/rust-demo/reference.safetensors
 ```
 
 Open [the local viewer](http://127.0.0.1:8765). If the generated run directories are unavailable, serve the committed evidence snapshots.
@@ -20,6 +20,10 @@ Open [the local viewer](http://127.0.0.1:8765). If the generated run directories
 ```
 
 ## Demonstration sequence
+
+For a live editable demonstration, choose **Inspect sample fixture** from Overview. Select layer 2 and `model.layers.2.mlp.down_proj.weight`, set tile size 8 and jump to flat index 459. Hover a connection to see its coordinate, then click or press Enter on it to select its editor. Change the selected value to `100` and run **Selected tensor probe**. The completed experiment changes eight of 512 measured outputs, keeps outputs finite and restores the exact reference output hash. Open the new evidence, then inspect its edited checkpoint. This is a fast synthetic tensor demonstration; use the real-model sequence below for full Qwen evidence.
+
+For a new language-generation demonstration, select a parameter from the original Qwen checkpoint and choose **Full Qwen generation**. This creates two full checkpoint copies and compares all three stages; it takes several minutes. Use the saved reports during a time-limited presentation.
 
 1. Open `qwen-rust-buffered/demo.json` from runs or `qwen-demo.json` from examples. Show the seeded-fault label and coverage of 1,543,714,304 stored parameters across 338 tensors.
 2. Choose Before repair. Show one nonfinite value and one changed element.

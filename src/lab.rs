@@ -237,13 +237,21 @@ impl Lab {
         let report_name = if mode == "generation" {
             #[cfg(feature = "inference")]
             {
+                super::write_json(&output.join("demo.json"), &demonstration)?;
+                let assets = if reference.is_dir() {
+                    reference
+                } else {
+                    reference
+                        .parent()
+                        .context("Model has no assets directory")?
+                };
                 let report = super::inference::compare(
                     &[
                         ("reference", reference),
                         ("candidate", candidate.as_path()),
                         ("repaired", repaired.as_path()),
                     ],
-                    reference,
+                    assets,
                     &[prompt.to_owned()],
                     steps,
                     "bf16",
