@@ -13,8 +13,10 @@ use std::{
 };
 
 mod atlas;
+mod behavior;
 #[cfg(feature = "inference")]
 mod inference;
+mod perturb;
 mod trace_report;
 #[cfg(feature = "inference")]
 mod traced_qwen;
@@ -30,6 +32,20 @@ struct Cli {
 }
 #[derive(Subcommand)]
 enum Command {
+    SeedScale {
+        reference: PathBuf,
+        #[arg(long)]
+        tensor: String,
+        #[arg(long)]
+        index: usize,
+        #[arg(long)]
+        factor: f64,
+        #[arg(long)]
+        output: PathBuf,
+    },
+    AssessBehavior {
+        path: PathBuf,
+    },
     TraceSlice {
         path: PathBuf,
         #[arg(long)]
@@ -42,6 +58,8 @@ enum Command {
         module_prefix: String,
         #[arg(long)]
         nonfinite_only: bool,
+        #[arg(long)]
+        changed_only: bool,
         #[arg(long, default_value_t = 0)]
         offset: usize,
         #[arg(long, default_value_t = 32)]
@@ -731,12 +749,18 @@ fn mcp_result(request: &Value) -> Result<Value> {
             json!({"tools":[{"name":"assess_checkpoint","description":"Full numerical health and optional reference comparison","inputSchema":{"type":"object","properties":{"path":{"type":"string"},"reference":{"type":"string"}},"required":["path"]}},
                 {"name":"tensor_slice","description":"Read a bounded flattened slice of actual tensor values","inputSchema":{"type":"object","properties":{"path":{"type":"string"},"tensor":{"type":"string"},"offset":{"type":"integer","minimum":0},"count":{"type":"integer","minimum":0,"maximum":4096}},"required":["path","tensor"]}},
                 {"name":"checkpoint_graph","description":"Inspect every stored tensor and validated Qwen2 architecture topology","inputSchema":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}},
-                {"name":"activation_trace","description":"Read a bounded, filtered page of recorded runtime activation observations without loading a model","inputSchema":{"type":"object","properties":{"path":{"type":"string"},"stage":{"type":"string","enum":["reference","candidate","repaired"]},"evaluation":{"type":"integer","minimum":0},"step":{"type":"integer","minimum":0},"module_prefix":{"type":"string"},"nonfinite_only":{"type":"boolean"},"offset":{"type":"integer","minimum":0},"count":{"type":"integer","minimum":1,"maximum":128}},"required":["path"]}},
+                {"name":"activation_trace","description":"Read a bounded, filtered page of recorded runtime activation observations without loading a model","inputSchema":{"type":"object","properties":{"path":{"type":"string"},"stage":{"type":"string","enum":["reference","candidate","repaired"]},"evaluation":{"type":"integer","minimum":0},"step":{"type":"integer","minimum":0},"module_prefix":{"type":"string"},"nonfinite_only":{"type":"boolean"},"changed_only":{"type":"boolean"},"offset":{"type":"integer","minimum":0},"count":{"type":"integer","minimum":1,"maximum":128}},"required":["path"]}},
+                {"name":"assess_behavior","description":"Measure bounded repetition and token concentration in a saved runtime report; descriptive signals, not semantic or security verdicts","inputSchema":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}},
                 {"name":"tensor_tile","description":"Read a bounded matrix tile with exact raw bytes and optional reference differences","inputSchema":{"type":"object","properties":{"path":{"type":"string"},"reference":{"type":"string"},"tensor":{"type":"string"},"row":{"type":"integer","minimum":0},"column":{"type":"integer","minimum":0},"rows":{"type":"integer","minimum":1,"maximum":64},"columns":{"type":"integer","minimum":1,"maximum":64}},"required":["path","tensor"]}}]}),
         ),
         "tools/call" => {
             let result = (|| -> Result<Value> {
                 let a = &params["arguments"];
+                if params["name"] == "assess_behavior" {
+                    return behavior::report(&trace_report::load(Path::new(
+                        a["path"].as_str().context("Missing path")?,
+                    ))?);
+                }
                 if params["name"] == "activation_trace" {
                     return trace_report::read(a);
                 }
@@ -771,6 +795,19 @@ fn mcp_result(request: &Value) -> Result<Value> {
 }
 fn main() -> Result<()> {
     match Cli::parse().command {
+        Command::SeedScale {
+            reference,
+            tensor,
+            index,
+            factor,
+            output,
+        } => println!(
+            "{}",
+            perturb::scale(&reference, &tensor, index, factor, &output)?
+        ),
+        Command::AssessBehavior { path } => {
+            println!("{}", behavior::report(&trace_report::load(&path)?)?)
+        }
         Command::TraceSlice {
             path,
             stage,
@@ -778,10 +815,11 @@ fn main() -> Result<()> {
             step,
             module_prefix,
             nonfinite_only,
+            changed_only,
             offset,
             count,
         } => {
-            let mut args = json!({"path":path,"evaluation":evaluation,"step":step,"module_prefix":module_prefix,"nonfinite_only":nonfinite_only,"offset":offset,"count":count});
+            let mut args = json!({"path":path,"evaluation":evaluation,"step":step,"module_prefix":module_prefix,"nonfinite_only":nonfinite_only,"changed_only":changed_only,"offset":offset,"count":count});
             if let Some(stage) = stage {
                 args["stage"] = json!(stage);
             }

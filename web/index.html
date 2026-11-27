@@ -10,6 +10,7 @@
 <style>
 .toolbar>select{max-width:100%}.atlas-controls label{max-width:100%;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.atlas-controls select{min-width:0;max-width:100%}.atlas-columns>.card{min-width:0}@media(max-width:1050px){.atlas-columns{grid-template-columns:minmax(0,1fr)}}
 .atlas-diagram .module.observed-finite rect{fill:#173b32}.atlas-diagram .module.observed-fault rect{fill:#633723;stroke:#ffad76}#atlas-execution{margin:18px 0}
+.changed-output{color:#d5b5ff}.atlas-diagram .module.observed-changed rect{fill:#483258;stroke:#cfb0ef}.atlas-group button.observed-changed{background:#483258;border-color:#cfb0ef}.atlas-group button.observed-fault{background:#633723;border-color:#ffad76}.atlas-group button.observed-finite{background:#173b32}
 </style>
 <header><h1>LLMIUM</h1><span>CHECKPOINT OBSERVATORY</span></header>
 <main><h2>Follow the evidence through the weights.</h2><p>Inspect numerical health, localize checkpoint changes, and verify reference restoration.</p>
@@ -87,6 +88,12 @@ function renderRuntime() {
         card.append(element('p', evaluation.generated_text || 'Generation stopped before decoded output.'));
         const failed = evaluation.steps.some(step => step.nonfinite_logits > 0);
         card.append(element('p', evaluation.stop_reason, failed ? 'high' : 'good'));
+        if (evaluation.behavior) {
+            const behavior = evaluation.behavior;
+            card.append(element('p', 'Behavioral observations · '+behavior.generated_tokens+' tokens · '+behavior.unique_tokens+' unique · repetition signal '+behavior.bounded_repetition_signal+' · low diversity signal '+behavior.low_diversity_signal,
+                behavior.bounded_repetition_signal || behavior.low_diversity_signal ? 'high' : 'good'));
+            const detail = element('details','');detail.append(element('summary','Behavioral signal evidence'),element('pre',JSON.stringify(behavior,null,2)));card.append(detail);
+        }
         const evidence = element('details', '');
         evidence.append(element('summary', 'Token and logit evidence'));
         evidence.append(element('pre', JSON.stringify({
@@ -96,7 +103,7 @@ function renderRuntime() {
             elapsed_seconds: evaluation.elapsed_seconds
         }, null, 2)));
         card.append(evidence);
-        window.traceUI.attach(card, stage, evaluation);
+        window.traceUI.attach(card, stage, evaluation, comparison && label !== 'reference' ? documentData.stages.reference.evaluations[promptIndex] : undefined);
         $('runtime-evaluations').append(card);
       }
     }
@@ -105,6 +112,9 @@ function renderRuntime() {
         comparison.append(element('summary', 'Activation comparison evidence'));
         comparison.append(element('pre', JSON.stringify(documentData.activation_comparison, null, 2)));
         $('runtime-evaluations').append(comparison);
+    }
+    if (comparison && documentData.behavioral_comparison) {
+        const evidence = element('details','');evidence.append(element('summary','Behavioral comparison evidence'),element('pre',JSON.stringify(documentData.behavioral_comparison,null,2)));$('runtime-evaluations').append(evidence);
     }
     $('runtime-evaluations').append(element('p', documentData.interpretation));
 }

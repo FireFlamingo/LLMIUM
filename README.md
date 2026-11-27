@@ -45,6 +45,25 @@ Run `llmium mcp` as a stdio MCP server. It exposes `assess_checkpoint` with a re
 }
 ```
 
+The sixth MCP tool, `assess_behavior`, accepts a saved runtime report `path` and measures repeated suffixes, token concentration and entropy. It recomputes the signals from recorded token IDs. The `activation_trace` tool also accepts `changed_only` to select outputs with different F32 hashes from the corresponding reference observations, including fully finite differences. Such reads require a recorded reference step and include `input_context_matches`. Once generated contexts diverge, activation differences alone do not localize the changed parameter.
+
+## Assess finite behavioral changes
+
+`seed-scale` creates a new checkpoint copy with one explicitly selected parameter scaled by a finite factor. It supports F32, F16 and BF16, verifies the encoded value is finite and changed, and saves exact bytes and tensor hashes in `llmium-seed.json`. It preserves the source. This is a controlled experiment, with a trusted reference supplied by the operator.
+
+```bash
+./target/release/llmium seed-scale models/Qwen2.5-1.5B-Instruct --tensor model.norm.weight --index 0 --factor 1000000 --output runs/finite-experiment/candidate
+./target/release/llmium scan runs/finite-experiment/candidate --reference models/Qwen2.5-1.5B-Instruct --output runs/finite-experiment/before.json
+./target/release/llmium repair runs/finite-experiment/candidate --reference models/Qwen2.5-1.5B-Instruct --tensor model.norm.weight --output runs/finite-experiment/repaired
+RAYON_NUM_THREADS=2 ./target/release/llmium runtime-compare --reference models/Qwen2.5-1.5B-Instruct --candidate runs/finite-experiment/candidate --repaired runs/finite-experiment/repaired --assets models/Qwen2.5-1.5B-Instruct --prompt 'The capital of France is' --max-new-tokens 16 --trace --output runs/finite-experiment/runtime.json
+./target/release/llmium assess-behavior runs/finite-experiment/runtime.json
+./target/release/llmium trace-slice runs/finite-experiment/runtime.json --stage candidate --step 0 --changed-only --count 8
+```
+
+Runtime evaluations include descriptive behavioral metrics. A bounded repetition signal requires a token-limit stop and an exact repeated suffix spanning at least eight tokens and half the output, with at least three repeats and period up to 32. A low-diversity signal requires at least 16 generated tokens, a token-limit stop and no more than two unique tokens. Legitimate requested repetition can trigger these signals. They do not establish an infinite reasoning loop or a security vulnerability. Controlled comparison reports distinguish candidate-only signals and verify recorded behavioral recovery.
+
+In the trace viewer, Only changed outputs compares aligned module, operation and shape records with the reference. Purple graph modules have finite outputs whose hashes changed; orange modules contain nonfinite outputs. Endpoint buttons also expose recorded embedding, final-normalization and output-head observations. The viewer states whether the input context matches the reference.
+
 ## Explore the network and actual weights
 
 Register the checkpoints that the read-only viewer may inspect. IDs follow registration order. Existing report viewing works without registered checkpoints.

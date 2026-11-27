@@ -20,6 +20,10 @@ fn index(args: &Value, name: &str, default: usize) -> Result<usize> {
 
 pub fn read(args: &Value) -> Result<Value> {
     let path = Path::new(args["path"].as_str().context("Missing trace report path")?);
+    select(&load(path)?, args)
+}
+
+pub fn load(path: &Path) -> Result<Value> {
     let file = File::open(path)?;
     let metadata = file.metadata()?;
     ensure!(
@@ -32,8 +36,7 @@ pub fn read(args: &Value) -> Result<Value> {
         bytes.len() as u64 <= MAX_REPORT_BYTES,
         "Trace report exceeds 64 MiB"
     );
-    let report: Value = serde_json::from_slice(&bytes).context("Invalid trace report JSON")?;
-    select(&report, args)
+    serde_json::from_slice(&bytes).context("Invalid trace report JSON")
 }
 
 fn select(report: &Value, args: &Value) -> Result<Value> {
@@ -77,6 +80,11 @@ fn select(report: &Value, args: &Value) -> Result<Value> {
         .map(|value| value.as_bool().context("nonfinite_only must be a boolean"))
         .transpose()?
         .unwrap_or(false);
+    let changed_only = args
+        .get("changed_only")
+        .map(|value| value.as_bool().context("changed_only must be a boolean"))
+        .transpose()?
+        .unwrap_or(false);
     let evaluation = stage["evaluations"]
         .as_array()
         .and_then(|items| items.get(evaluation_index))
@@ -88,13 +96,49 @@ fn select(report: &Value, args: &Value) -> Result<Value> {
     let records = step["activation_trace"]
         .as_array()
         .context("This step has no recorded activation trace")?;
-    let filtered = records
+    let reference = stage_name.and_then(|_| {
+        report["stages"]["reference"]["evaluations"]
+            .as_array()?
+            .get(evaluation_index)
+    });
+    let baseline = reference
+        .and_then(|evaluation| evaluation["steps"].as_array()?.get(step_index))
+        .and_then(|step| step["activation_trace"].as_array());
+    ensure!(
+        !changed_only || baseline.is_some(),
+        "Changed-only reads require a comparison report with a recorded reference step"
+    );
+    let input_context_matches = reference.and_then(|reference| {
+        let reference_ids = reference["input_token_ids"].as_array()?;
+        let candidate_ids = evaluation["input_token_ids"].as_array()?;
+        let a = reference["generated_token_ids"].as_array()?;
+        let b = evaluation["generated_token_ids"].as_array()?;
+        Some(
+            reference_ids == candidate_ids
+                && a.len() >= step_index
+                && b.len() >= step_index
+                && a[..step_index] == b[..step_index],
+        )
+    });
+    let annotated = records.iter().enumerate().map(|(index,record)| {
+        let mut record=record.clone();
+        if let Some(baseline)=baseline {
+            let original=baseline.get(index).unwrap_or(&Value::Null);
+            let aligned=record["f32_sha256"].is_string() && original["f32_sha256"].is_string() &&
+                ["module","operation","shape"].iter().all(|key| record[*key]==original[*key]);
+            record["reference_comparison"]=json!({"aligned":aligned,"changed":if aligned{Some(record["f32_sha256"]!=original["f32_sha256"])}else{None},
+                "reference_f32_sha256":if aligned{original["f32_sha256"].clone()}else{Value::Null}});
+        }
+        record
+    }).collect::<Vec<_>>();
+    let filtered = annotated
         .iter()
         .filter(|record| {
             record["module"]
                 .as_str()
                 .is_some_and(|module| module.starts_with(prefix))
                 && (!nonfinite_only || record["nonfinite"].as_u64().unwrap_or(0) > 0)
+                && (!changed_only || record["reference_comparison"]["changed"] == true)
         })
         .collect::<Vec<_>>();
     ensure!(
@@ -106,7 +150,7 @@ fn select(report: &Value, args: &Value) -> Result<Value> {
     Ok(
         json!({"report":args["path"],"stage":stage_name,"model":stage["model"],"files":stage["files"],
         "config_sha256":stage["config_sha256"],"tokenizer_sha256":stage["tokenizer_sha256"],
-        "evaluation":evaluation_index,"prompt":evaluation["prompt"],"step":step_index,
+        "evaluation":evaluation_index,"prompt":evaluation["prompt"],"step":step_index,"input_context_matches":input_context_matches,
         "observations_total":records.len(),"matching_observations":filtered.len(),"offset":offset,
         "next_offset":if end<filtered.len(){Some(end)}else{None},"records":selected,
         "first_nonfinite_activation":step["first_nonfinite_activation"],"coverage":stage["trace_coverage"]}),
@@ -149,6 +193,8 @@ mod tests {
             json!({"evaluation":-1}),
             json!({"stage":"unknown"}),
             json!({"nonfinite_only":"true"}),
+            json!({"changed_only":"true"}),
+            json!({"changed_only":true}),
         ] {
             assert!(select(&report(), &args).is_err(), "{args}");
         }
@@ -159,6 +205,30 @@ mod tests {
         let single = json!({"report_type":"runtime_evaluation","evaluations":report()["stages"]["candidate"]["evaluations"]});
         assert!(select(&single, &json!({})).is_ok());
         assert!(select(&single, &json!({"stage":"candidate"})).is_err());
+    }
+    #[test]
+    fn finite_differences_filter_before_paging_and_identify_context_changes() {
+        let records = json!([
+            {"module":"embedding","operation":"lookup","shape":[1,2],"nonfinite":0,"f32_sha256":"a"},
+            {"module":"norm","operation":"norm","shape":[1,2],"nonfinite":0,"f32_sha256":"b"},
+            {"module":"head","operation":"linear","shape":[1,2],"nonfinite":0,"f32_sha256":"c"}]);
+        let evaluation = json!({"input_token_ids":[9],"generated_token_ids":[10,11],"steps":[{"activation_trace":records},{"activation_trace":records}]});
+        let mut report = json!({"report_type":"runtime_comparison","stages":{"reference":{"evaluations":[evaluation]},"candidate":{"evaluations":[evaluation]}}});
+        report["stages"]["candidate"]["evaluations"][0]["steps"][0]["activation_trace"][1]
+            ["f32_sha256"] = json!("changed");
+        report["stages"]["candidate"]["evaluations"][0]["steps"][0]["activation_trace"][2]
+            ["f32_sha256"] = json!("changed2");
+        let result = select(&report, &json!({"changed_only":true,"count":1})).unwrap();
+        assert_eq!(result["matching_observations"], 2);
+        assert_eq!(result["records"][0]["module"], "norm");
+        assert_eq!(result["records"][0]["nonfinite"], 0);
+        assert_eq!(result["next_offset"], 1);
+        assert_eq!(result["input_context_matches"], true);
+        report["stages"]["candidate"]["evaluations"][0]["generated_token_ids"][0] = json!(99);
+        assert_eq!(
+            select(&report, &json!({"step":1})).unwrap()["input_context_matches"],
+            false
+        );
     }
     #[test]
     fn trace_files_are_size_limited_before_json_parsing() {

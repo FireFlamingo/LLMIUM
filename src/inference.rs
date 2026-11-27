@@ -169,6 +169,7 @@ pub fn evaluate(
             .decode(&generated, true)
             .map_err(anyhow::Error::msg)?;
         evaluations.push(json!({"prompt":prompt,"input_token_ids":input_ids,"generated_token_ids":generated,"generated_text":text,
+            "behavior":super::behavior::analyze(&generated,stop_reason),
             "steps":steps,"stop_reason":stop_reason,"elapsed_seconds":evaluation_started.elapsed().as_secs_f64()}));
         eprintln!(
             "Evaluated prompt using {} generation steps, stop {stop_reason}",
@@ -267,11 +268,13 @@ fn comparison_report(reports: serde_json::Map<String, Value>) -> Value {
         && reference_nonfinite == 0
         && repaired_nonfinite == 0;
     let activation_comparison = compare_activations(&reports);
+    let behavioral_comparison = super::behavior::comparison(&reports).ok();
     json!({"schema_version":1,"report_type":"runtime_comparison","stages":reports,
         "exact_logit_recovery":logits_recovered,"token_sequence_recovery":tokens_recovered,
         "checkpoint_hash_recovery":checkpoint_hash_recovery,"recovery_verified":recovery_verified,
         "settings_match":settings_match,
         "activation_comparison":activation_comparison,
+        "behavioral_comparison":behavioral_comparison,
         "reference_nonfinite_logits":reference_nonfinite,"candidate_nonfinite_logits":candidate_nonfinite,"repaired_nonfinite_logits":repaired_nonfinite,
         "interpretation":"Controlled full-model observations for the supplied checkpoints, prompts and CPU runtime. Interpret numerical failures and recovery from the recorded measurements. Broader security and behavioral claims require separate evidence."})
 }
@@ -297,6 +300,16 @@ fn compare_activations(reports: &serde_json::Map<String, Value>) -> Option<Value
         {
             let baseline = a["activation_trace"].as_array()?;
             let changed = b["activation_trace"].as_array()?;
+            let input_context_matches = reference["input_token_ids"]
+                == candidate["input_token_ids"]
+                && reference["generated_token_ids"]
+                    .as_array()?
+                    .iter()
+                    .take(step_index)
+                    .eq(candidate["generated_token_ids"]
+                        .as_array()?
+                        .iter()
+                        .take(step_index));
             let aligned = baseline.len() == changed.len()
                 && baseline.iter().zip(changed).all(|(a, b)| {
                     a["module"] == b["module"]
@@ -308,7 +321,7 @@ fn compare_activations(reports: &serde_json::Map<String, Value>) -> Option<Value
             } else {
                 None
             };
-            observations.push(json!({"prompt_index":prompt_index,"step":step_index,"records_aligned":aligned,"first_changed_output":first_changed,"first_nonfinite_output":b["first_nonfinite_activation"]}));
+            observations.push(json!({"prompt_index":prompt_index,"step":step_index,"input_context_matches":input_context_matches,"records_aligned":aligned,"first_changed_output":first_changed,"first_nonfinite_output":b["first_nonfinite_activation"]}));
         }
     }
     for (reference, repaired) in reference.iter().zip(repaired) {
@@ -335,7 +348,7 @@ mod tests {
         ["reference", "candidate", "repaired"].into_iter().map(|label| {
             (label.into(), json!({"files":[{"name":"model.safetensors","sha256":"a"}],
                 "config_sha256":"config","tokenizer_sha256":"tokenizer","runtime":"test","runtime_version":"1","dtype":"F32","decoding":"greedy","max_new_tokens":1,
-                "evaluations":[{"generated_token_ids":[1],"steps":[{"logits_sha256":"a","nonfinite_logits":nonfinite,"next_token_id":1}]}]}))
+                "evaluations":[{"prompt":"test","input_token_ids":[5],"stop_reason":"token_limit","generated_token_ids":[1],"steps":[{"logits_sha256":"a","nonfinite_logits":nonfinite,"next_token_id":1}]}]}))
         }).collect()
     }
 
@@ -376,6 +389,10 @@ mod tests {
         stages["candidate"]["evaluations"][0]["steps"][0]["activation_trace"][1]["f32_sha256"] =
             json!("fault");
         let result = comparison_report(stages.clone());
+        assert_eq!(
+            result["activation_comparison"]["candidate_observations"][0]["input_context_matches"],
+            true
+        );
         assert_eq!(
             result["activation_comparison"]["candidate_observations"][0]["first_changed_output"]
                 ["module"],

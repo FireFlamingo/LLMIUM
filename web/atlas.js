@@ -46,7 +46,7 @@ window.atlasUI = (() => {
         }
     }
 
-    async function openExecution(stage, step) {
+    async function openExecution(stage, step, baselineStep, inputContextMatches) {
         const model = models.find(model => model.path === stage.model_canonical);
         if (!model) {
             byId('status').textContent = 'Register the recorded checkpoint with --checkpoint to overlay this execution: ' + (stage.model_canonical || stage.model);
@@ -59,14 +59,20 @@ window.atlasUI = (() => {
             if (epoch !== graphEpoch) return;
             if (report.config_sha256 !== stage.config_sha256) throw Error('Recorded configuration hash differs from the registered checkpoint.');
             show(report, String(model.id));
+            step = {...step,activation_trace:step.activation_trace.map((record,index)=>({...record,
+                reference_comparison:window.traceUI.compareRecord(record,baselineStep?.activation_trace?.[index])}))};
             execution = {stage, step};
             byId('atlas-execution').hidden = false;
             byId('atlas-execution-summary').textContent = 'Recorded generation step ' + step.step + ' · ' + step.activation_trace.length +
-                ' observed outputs. Green modules had finite recorded outputs; orange modules had nonfinite outputs. The overlay matches the registered path and configuration hash. Weight files are not rehashed by the viewer; keep checkpoints immutable.';
-            byId('atlas-activation').textContent = JSON.stringify({model:stage.model_canonical,files:stage.files,first_nonfinite_activation:step.first_nonfinite_activation}, null, 2);
-            const first = step.first_nonfinite_activation?.module.match(/\.layers\.(\d+)/);
+                ' observed outputs. Green modules had finite recorded outputs; orange modules had nonfinite outputs; purple modules had finite outputs changed from reference.' +
+                (baselineStep ? (inputContextMatches ? ' Input context matches reference.' : ' Input context differs; output differences alone do not localize a parameter change.') : ' No reference comparison for this step.') +
+                ' The overlay matches the registered path and configuration hash. Weight files are not rehashed by the viewer; keep checkpoints immutable.';
+            const firstChanged = step.activation_trace.find(record=>record.reference_comparison.changed);
+            byId('atlas-activation').textContent = JSON.stringify({model:stage.model_canonical,files:stage.files,input_context_matches:inputContextMatches,
+                first_nonfinite_activation:step.first_nonfinite_activation,first_changed_activation:firstChanged}, null, 2);
+            const first = (step.first_nonfinite_activation || firstChanged)?.module.match(/\.layers\.(\d+)/);
             if (first) layer = Number(first[1]);
-            renderLayers();renderTensors();
+            renderEndpoints();renderLayers();renderTensors();
         } catch (error) {
             if (epoch === graphEpoch) byId('status').textContent = error.message;
         }
@@ -92,19 +98,32 @@ window.atlasUI = (() => {
             'Tensor inventory only. ' + (data.topology_error || 'No architecture adapter is available for this checkpoint.');
         byId('atlas-limits').textContent = data.interpretation;
         byId('atlas-filter').value = '';
+        renderEndpoints();
+        renderLayers();
+        renderTensors();
+    }
+
+    function observationClass(records) {
+        return records.length ? (records.some(record=>record.nonfinite > 0) ? ' observed-fault' :
+            records.some(record=>record.reference_comparison?.changed) ? ' observed-changed' : ' observed-finite') : '';
+    }
+
+    function renderEndpoints() {
         byId('atlas-endpoints').replaceChildren();
         if (data.topology) {
-            for (const [label, name] of [['Token embedding',data.topology.input_embedding],
-                ['Final RMSNorm',data.topology.final_norm],
-                [data.topology.tied_output_head ? 'LM head · tied embedding' : 'LM head',data.topology.output_head]]) {
-                const button = make('button', label);
-                button.onclick = () => { layer = null; byId('atlas-filter').value=''; renderLayers(); renderTensors(name); };
+            for (const [label, name, module] of [['Token embedding',data.topology.input_embedding,'model.embed_tokens'],
+                ['Final RMSNorm',data.topology.final_norm,'model.norm'],
+                [data.topology.tied_output_head ? 'LM head · tied embedding' : 'LM head',data.topology.output_head,'lm_head']]) {
+                const records = execution?.step.activation_trace.filter(record=>record.module===module) || [];
+                const button = make('button', label, observationClass(records).trim());
+                button.onclick = () => {
+                    layer = null; byId('atlas-filter').value=''; renderLayers(); renderTensors(name);
+                    if (records.length) byId('atlas-activation').textContent = JSON.stringify(records,null,2);
+                };
                 byId('atlas-endpoints').append(button);
             }
             byId('atlas-endpoints').append(make('p','Tokens → embedding → decoder blocks in layer order → final RMSNorm → LM head', 'atlas-note'));
         }
-        renderLayers();
-        renderTensors();
     }
 
     function renderLayers() {
@@ -150,7 +169,7 @@ window.atlasUI = (() => {
         }
         for (const node of block.nodes) {
             const records = observedOutputs(node);
-            const observedClass = records.length ? (records.some(record=>record.nonfinite > 0) ? ' observed-fault' : ' observed-finite') : '';
+            const observedClass = observationClass(records);
             const group = svgNode('g',{class:'module'+observedClass+(byId('atlas-tensor').value === node.tensor ? ' selected' : ''),
                 ...(node.tensor || records.length ? {role:'button',tabindex:0,'aria-label':'Inspect '+node.label} : {})});
             group.append(svgNode('rect',{x:node.x-123,y:node.y-28,width:246,height:56,rx:7}));
