@@ -10,7 +10,7 @@ Run from Kali WSL. Python is not required.
 ```bash
 cd /mnt/d/Projects/LLMIUM
 ~/.cargo/bin/cargo build --release --features inference
-./target/release/llmium serve --root runs --allow-edits \
+RAYON_NUM_THREADS=2 ./target/release/llmium serve --root runs --allow-edits \
   --checkpoint models/Qwen2.5-1.5B-Instruct \
   --checkpoint runs/qwen-rust-buffered/candidate \
   --checkpoint runs/qwen-rust-buffered/repaired \
@@ -75,6 +75,8 @@ Open `qwen-activation/comparison.json`, expand the first candidate's *Recorded a
 The first changed and nonfinite output is `model.layers.0.self_attn.q_proj`, observation 2. The parallel key and value projections remain finite at that boundary. Select a row to inspect counts, hashes and coordinates.
 Click *Show execution on checkpoint graph*. Green marks finite outputs; orange marks nonfinite outputs; purple marks finite outputs changed from the aligned reference. Endpoint buttons expose embedding, final normalization and output-head observations.
 #note("Trace scope",[The saved run records 507 observations per forward step. All 3,042 repaired observations match the reference exactly. The viewer matches canonical checkpoint path and configuration hash; it does not rehash weight files while browsing. Preserve the recorded checkpoints.])
+== Show finite repetition
+Open `qwen-finite/runtime.json`. The deliberately amplified final-normalization parameter stays finite. The candidate emits two unique token IDs in 16 steps, including 12 consecutive repeats; the reference has 13 unique tokens. All logits and recorded activations stay finite. At step 0, *Only changed outputs* shows final normalization (505) and the output head (506). At step 1, explain the context-divergence warning. Restoration exactly recovers all 8,112 activation observations, token IDs and logit hashes. This bounded observation does not prove an infinite reasoning loop.
 #pagebreak()
 #label("Full rerun and troubleshooting")
 = Run a new generation experiment

@@ -35,6 +35,14 @@ For a new language-generation demonstration, select a parameter from the origina
 8. Choose registered checkpoint 1 and click Inspect checkpoint. Select layer 0, then its Q projection module. Set Compare to checkpoint 0. Show the orange weight at row 0, column 0, its raw bytes and its connection line. Select checkpoint 2 and repeat the comparison to show zero changed cells in the restored tile. Use flat-index and page controls to inspect other parameter coordinates.
 9. Open `qwen-activation/comparison.json` from runs or `qwen-activation.json` from examples. Expand Recorded activation trace on the first candidate runtime card. The first changed and nonfinite output is `model.layers.0.self_attn.q_proj`, observation 2. Show five nonfinite query outputs, while the parallel key and value outputs remain finite. Downstream observations show 10 after query RoPE, 25 attention probabilities, 640 attention-context elements and 7,680 attention-output elements. Show execution on checkpoint graph overlays these observations on the registered checkpoint's modules. The repaired stage has exact recovery of all 3,042 recorded observations. Explain that the recorded execution and parameter differences together support this controlled fault localization; arbitrary semantic defects require additional analysis.
 
+## Show the finite repetition experiment
+
+Open `qwen-finite/runtime.json` from runs or `qwen-finite-runtime.json` from examples. This is a separate deliberately seeded, finite edit: `model.norm.weight[0]` changes from 3.0 to BF16 2,998,272.0. The full scan identifies one changed element and zero nonfinite parameters.
+
+For `The capital of France is`, the reference begins ` Paris.`; the candidate emits two unique token IDs over 16 steps. Token 137390 occurs 14 times, with 12 consecutive repeats at the end. Show the candidate-only bounded repetition and low-diversity signals. Every recorded activation and logit remains finite. This is a measured bounded regression, not proof of infinite reasoning.
+
+Expand the candidate trace at step 0 and select **Only changed outputs**. Exactly two records remain: `model.norm` at observation 505 and `lm_head` at 506. Show execution on the checkpoint graph, then select the final-normalization endpoint to inspect the finite purple change. At step 1 the input context differs because the first generated token changed; show that warning before interpreting later differences. The repaired stage recovers the checkpoint hash, all 16 token IDs and logit hashes, and all 8,112 recorded activation observations.
+
 ## Reproduce the experiment
 
 Use fresh output paths. Assessment reads every supported parameter. Model copies, hashing and CPU inference can take several minutes, particularly across the Windows-mounted filesystem.

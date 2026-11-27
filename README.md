@@ -53,7 +53,7 @@ Inputs are a safetensors file or directory of shards. The safetensors crate vali
 
 NaNs and infinities receive high numerical-health findings. All-zero tensors receive informational findings because zero biases are common. Reference differences receive review findings. These findings describe measured properties. Security vulnerability classification, CWE mapping and CVSS scoring require demonstrated security impact.
 
-Repair requires a new output directory and a compatible trusted reference. It restores selected tensors, rescans and publishes the new directory after verification. JSON configuration and a reference hash manifest are copied. Copy any additional tokenizer or deployment assets required by your runtime. Keep files immutable during scans and repair. Quantized packed formats, GGUF and unsupported float formats need future adapters.
+Repair requires a new output directory and a compatible trusted reference. It restores selected tensors, rescans and publishes the new directory after verification. Known model configuration/tokenizer JSON assets and a reference hash manifest are copied; unrelated neighboring JSON and previous reports are excluded. Copy any additional tokenizer or deployment assets required by your runtime. Keep files immutable during scans and repair. Quantized packed formats, GGUF and unsupported float formats need future adapters.
 
 ## Agent interface
 
@@ -86,6 +86,10 @@ RAYON_NUM_THREADS=2 ./target/release/llmium runtime-compare --reference models/Q
 ```
 
 Runtime evaluations include descriptive behavioral metrics. A bounded repetition signal requires a token-limit stop and an exact repeated suffix spanning at least eight tokens and half the output, with at least three repeats and period up to 32. A low-diversity signal requires at least 16 generated tokens, a token-limit stop and no more than two unique tokens. Legitimate requested repetition can trigger these signals. They do not establish an infinite reasoning loop or a security vulnerability. Controlled comparison reports distinguish candidate-only signals and verify recorded behavioral recovery.
+
+The completed `examples/qwen-finite-runtime.json` preserves a real Qwen2.5 1.5B comparison: `model.norm.weight[0]` changes from 3.0 to BF16 2,998,272.0. For `The capital of France is`, the candidate generates two unique token IDs in 16 steps, including 12 consecutive repeats; the reference has 13 unique tokens. All recorded activations and logits remain finite. At the shared initial input only final normalization and the output head differ. Later generated contexts diverge. The restored checkpoint recovers all tokens, logit hashes and 8,112 recorded activations exactly. This deliberately seeded one-prompt regression does not establish an infinite reasoning loop or a naturally occurring vulnerability.
+
+The corresponding full scan and exact edit manifest are preserved together in `examples/qwen-finite-assessment.json` (`seeded_parameter` records the original and stored values, bytes, coordinate and tensor hashes).
 
 In the trace viewer, Only changed outputs compares aligned module, operation and shape records with the reference. Purple graph modules have finite outputs whose hashes changed; orange modules contain nonfinite outputs. Endpoint buttons also expose recorded embedding, final-normalization and output-head observations. The viewer states whether the input context matches the reference.
 

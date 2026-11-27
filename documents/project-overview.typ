@@ -42,7 +42,7 @@ All *3,042 repaired activation observations* match the reference exactly. Twelve
 == Finite editing
 The browser-verified fixture experiment changes parameter 459 in a 64 by 64 matrix to 100. Exactly eight of 512 deterministic probe outputs change, all remain finite, and restoration recovers every reference output bit. `examples/connection-edit.json` preserves the measured comparison.
 
-The workbench supports explicit finite single-parameter edits and compares their effects. The existing finite candidate changes one final-normalization weight from 3.0 to 2,998,272.0; its full numerical scan reports exactly one changed parameter and zero nonfinite values. The selected tensor has been restored and the repaired file hash verified. Full generation evidence for any new finite edit must be read from its completed run.
+The real Qwen finite experiment changes one final-normalization weight from 3.0 to BF16 2,998,272.0. On the prompt “The capital of France is”, the candidate emits two unique token IDs in 16 steps; one occurs 14 times, including 12 consecutive repeats. All parameters, logits and recorded activations remain finite. The initial trace first changes at final normalization, observation 505. Restoration recovers the checkpoint hash, all token IDs and logit hashes, and all *8,112 recorded activations*. This is a deliberately seeded, bounded regression on one prompt. Evidence: `examples/qwen-finite-runtime.json`.
 #note("Evidence scope",[These results establish controlled observations and exact recorded recovery for the supplied checkpoints, inputs and runtime. They do not demonstrate a naturally occurring flaw, universal model equivalence or access to other users' contexts.])
 #pagebreak()
 #label("Research position / goals")
