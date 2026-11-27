@@ -368,6 +368,29 @@ fn write_json(path: &Path, value: &Value) -> Result<()> {
     fs::write(path, serde_json::to_vec_pretty(value)?)?;
     Ok(())
 }
+fn checkpoint_json_asset(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| {
+            [
+                "config.json",
+                "generation_config.json",
+                "tokenizer.json",
+                "tokenizer_config.json",
+                "vocab.json",
+                "added_tokens.json",
+                "special_tokens_map.json",
+                "preprocessor_config.json",
+                "processor_config.json",
+                "image_processor_config.json",
+                "feature_extractor_config.json",
+                "adapter_config.json",
+                "quantization_config.json",
+                "model.safetensors.index.json",
+            ]
+            .contains(&name)
+        })
+}
 fn copy_checkpoint_json(path: &Path, output: &Path) -> Result<()> {
     let root = if path.is_dir() {
         path
@@ -376,7 +399,7 @@ fn copy_checkpoint_json(path: &Path, output: &Path) -> Result<()> {
     };
     for entry in fs::read_dir(root)? {
         let file = entry?.path();
-        if file.is_file() && file.extension().is_some_and(|e| e == "json") {
+        if file.is_file() && checkpoint_json_asset(&file) {
             fs::copy(&file, output.join(file.file_name().unwrap()))?;
         }
     }
@@ -759,21 +782,16 @@ fn list_reports(root: &Path, dir: &Path, result: &mut Vec<String>) -> Result<()>
         }
         let p = entry.path();
         if p.is_dir() {
-            list_reports(root, &p, result)?;
+            // Older copies can contain inherited reports. Their provenance does not
+            // describe the edited checkpoint; experiment reports live above it.
+            if !p.join("llmium-seed.json").is_file() && !p.join("llmium-repair.json").is_file() {
+                list_reports(root, &p, result)?;
+            }
         } else if p.extension().is_some_and(|e| e == "json")
-            && ![
-                "llmium-repair.json",
-                "llmium-seed.json",
-                "job-state.json",
-                "config.json",
-                "generation_config.json",
-                "tokenizer.json",
-                "tokenizer_config.json",
-                "vocab.json",
-                "model.safetensors.index.json",
-            ]
-            .iter()
-            .any(|name| p.file_name().unwrap() == *name)
+            && !checkpoint_json_asset(&p)
+            && !["llmium-repair.json", "llmium-seed.json", "job-state.json"]
+                .iter()
+                .any(|name| p.file_name().unwrap() == *name)
         {
             result.push(p.strip_prefix(root)?.to_string_lossy().replace('\\', "/"));
         }
@@ -1169,6 +1187,12 @@ mod tests {
         fixture(&reference, false).unwrap();
         let config = br#"{"model_type":"fixture","hidden_size":64}"#;
         fs::write(dir.path().join("config.json"), config).unwrap();
+        fs::write(
+            dir.path().join("demo.json"),
+            br#"{"experiment":"old evidence"}"#,
+        )
+        .unwrap();
+        fs::write(dir.path().join("unrelated.json"), br#"{"local_only":true}"#).unwrap();
         let result = experiment(
             &reference,
             "model.layers.0.self_attn.q_proj.weight",
@@ -1180,6 +1204,9 @@ mod tests {
         assert_eq!(result["forward_pass"]["candidate"]["nonfinite_outputs"], 8);
         assert_eq!(result["after"]["findings"], json!([]));
         for stage in ["candidate", "repaired"] {
+            let copied = dir.path().join("experiment").join(stage);
+            assert!(!copied.join("demo.json").exists());
+            assert!(!copied.join("unrelated.json").exists());
             assert_eq!(
                 fs::read(
                     dir.path()
@@ -1191,6 +1218,23 @@ mod tests {
                 config
             );
         }
+    }
+
+    #[test]
+    fn report_picker_excludes_assets_and_inherited_checkpoint_reports() {
+        let dir = tempfile::tempdir().unwrap();
+        let job = dir.path().join("lab/job");
+        fs::create_dir_all(job.join("candidate")).unwrap();
+        fs::create_dir_all(job.join("repaired")).unwrap();
+        fs::write(job.join("demo.json"), b"{}").unwrap();
+        fs::write(job.join("processor_config.json"), b"{}").unwrap();
+        fs::write(job.join("candidate/llmium-seed.json"), b"{}").unwrap();
+        fs::write(job.join("candidate/demo.json"), b"{}").unwrap();
+        fs::write(job.join("repaired/llmium-repair.json"), b"{}").unwrap();
+        fs::write(job.join("repaired/demo.json"), b"{}").unwrap();
+        let mut reports = Vec::new();
+        list_reports(dir.path(), dir.path(), &mut reports).unwrap();
+        assert_eq!(reports, vec!["lab/job/demo.json"]);
     }
 
     #[test]

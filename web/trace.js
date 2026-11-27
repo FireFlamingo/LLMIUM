@@ -57,6 +57,7 @@ window.traceUI = (() => {
             const sameContext = () => Boolean(baseline && JSON.stringify(evaluation.input_token_ids) === JSON.stringify(baseline.input_token_ids) &&
                 JSON.stringify(evaluation.generated_token_ids.slice(0,Number(stepSelect.value))) === JSON.stringify(baseline.generated_token_ids.slice(0,Number(stepSelect.value))));
             function render() {
+                detail.textContent = 'Select an observation for coordinates, hashes and finite-value statistics.';
                 const step = selectedStep();
                 const records = step.activation_trace.map((record,index)=>({...record,reference_comparison:compareRecord(record,referenceStep()?.activation_trace?.[index])}));
                 const first = step.first_nonfinite_activation;
