@@ -31,7 +31,7 @@ The workbench uses locally bundled Manrope and IBM Plex Mono fonts; see `THIRD_P
 
 ## Presentation documents
 
-The six-page [demo guide](output/pdf/demo-guide.pdf) gives setup, connection editing and real-model presentation steps. The six-page [project overview](output/pdf/project-overview.pdf) covers the introduction, problem, solution, architecture, measured results and research goals. Both are available from **Project & demo** in the local workbench.
+The illustrated [demo guide](output/pdf/demo-guide.pdf) gives setup, connection editing and real-model presentation steps, with six actual workbench screenshots and an annotated walkthrough. The six-page [project overview](output/pdf/project-overview.pdf) covers the introduction, problem, solution, architecture, measured results and research goals. Both are available from **Project & demo** in the local workbench.
 
 Rebuild them using the Rust-based Typst CLI, with no Python dependency:
 

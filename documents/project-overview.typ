@@ -40,6 +40,8 @@ Three prompt evaluations of the complete model each stop at the first step with 
 The instrumented experiment records 507 module outputs per forward step. The first changed and first nonfinite candidate boundary is the first query projection on all three prompts. At that point the parallel key and value projections remain finite.
 All *3,042 repaired activation observations* match the reference exactly. Twelve healthy logit hashes also match the corresponding prefixes of the independent standard-runtime experiment.
 == Finite editing
+The browser-verified fixture experiment changes parameter 459 in a 64 by 64 matrix to 100. Exactly eight of 512 deterministic probe outputs change, all remain finite, and restoration recovers every reference output bit. `examples/connection-edit.json` preserves the measured comparison.
+
 The workbench supports explicit finite single-parameter edits and compares their effects. The existing finite candidate changes one final-normalization weight from 3.0 to 2,998,272.0; its full numerical scan reports exactly one changed parameter and zero nonfinite values. The selected tensor has been restored and the repaired file hash verified. Full generation evidence for any new finite edit must be read from its completed run.
 #note("Evidence scope",[These results establish controlled observations and exact recorded recovery for the supplied checkpoints, inputs and runtime. They do not demonstrate a naturally occurring flaw, universal model equivalence or access to other users' contexts.])
 #pagebreak()

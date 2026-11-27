@@ -1,6 +1,6 @@
 #import "theme.typ": *
 #show: setup.with("LLMIUM demonstration guide","Demonstration guide")
-#cover("PRESENTER'S GUIDE","Inspect. Edit.\nReproduce. Restore.",[A practical walkthrough for presenting LLMIUM, selecting a single weight connection and demonstrating a measured, verifiable recovery.])
+#cover("PRESENTER'S GUIDE","Inspect. Edit.\nReproduce. Restore.",[A practical walkthrough for presenting LLMIUM, selecting a single weight connection and demonstrating a measured, verifiable recovery. Includes a screen-by-screen walkthrough on pages 7-11.])
 #pagebreak()
 #label("Preparation")
 = Start the local workspace
@@ -49,6 +49,8 @@ Explain: “A displayed thread is one stored parameter coordinate in the selecte
 == Before repair
 Show the deliberately seeded experiment label, the tensor and the flat index. The comparison should identify one changed element. Because `100` is finite, the nonfinite count stays zero.
 In *Experiment evidence*, inspect `forward_pass`. Show the number of changed probe outputs and the maximum absolute delta. The reference, candidate and repaired hashes describe the actual recorded probe arrays.
+
+The verified fixture run changes *8 of 512 outputs*, with maximum absolute delta *99.90855407714844*. All stages remain finite. Its portable evidence is `examples/connection-edit.json`.
 == After repair
 Switch *Demo phase* to *After repair*. Show zero reference differences for the restored checkpoint. Explain that the tool restores the selected tensor from the supplied trusted baseline.
 Show `exact_forward_recovery: true`. This checks every recorded probe output bit against the reference.
@@ -93,3 +95,77 @@ At the initial prompt, matching input tokens permit a controlled comparison of t
 )
 #v(6pt)
 #card("Closing line",[“LLMIUM connects an exact parameter change to measured execution and verified restoration. The current product is an integrity and regression workbench. General semantic discovery and serving isolation are the next research problems.”])
+#pagebreak()
+#show figure.caption: set text(size:8.5pt,fill:muted)
+#label("Screen walkthrough / 01")
+= Open the local workbench
+After starting the server on page 2, open `http://127.0.0.1:8765`. The overview provides the workspace navigation, recorded assessment summary and starting points for the demonstration.
+#figure(image("screenshots/01-overview.jpg",width:100%),caption:[Live LLMIUM overview with the Rust engine connected. Assessment cards follow the currently opened checkpoint; this screen shows the fixture summary.])
+== Presenter actions
++ Point to *Inspect → Reproduce → Restore* in the evidence chain.
++ Click *Inspect sample fixture* in the lower-right card for the fast interactive demonstration.
++ Explain that the fixture is deliberately seeded and that the separate Qwen reports contain the real-model runtime evidence.
+#note("Keep the two demonstrations distinct",[The fixture makes live editing quick. The Qwen comparison demonstrates full language-model execution. Their parameter totals and runtime costs differ.])
+#pagebreak()
+#label("Screen walkthrough / 02")
+= Address the exact parameter
+In the fixture explorer, choose *Layer 2*, select `model.layers.2.mlp.down_proj.weight`, set *Tile size* to `8`, enter `459` in *Flat index*, then click *Go to index*.
+#grid(columns:(85mm,1fr),gutter:15pt,
+  image("screenshots/02-parameter-tile.jpg",width:85mm),
+  [
+    == Confirm the target
+    *Tensor*\
+    `model.layers.2.mlp.down_proj.weight`
+
+    *Matrix shape*\
+    64 rows by 64 columns
+
+    *Storage*\
+    F32
+
+    *Flat index*\
+    459
+
+    *Coordinate*\
+    Row 7, column 11
+
+    *Original value*\
+    0.02891916036605835
+
+    The first cell in this tile is the target. The matrix values are actual checkpoint reads; colors indicate sign and reference differences.
+  ])
+#v(8pt)
+#text(size:8.5pt,fill:muted)[Live parameter-tile close-up. Horizontal scrolling exposes additional columns when the table is wider than its panel.]
+== Explain the addressing
+The flat index uses row-major storage: `7 × 64 + 11 = 459`. Scrolling through tiles changes the displayed region, not the underlying checkpoint.
+#pagebreak()
+#label("Screen walkthrough / 03")
+= Select, edit and rerun
+Hover over a connection to read its coordinate. Click the connection from *Column 11* to *Row 7*, or focus it and press Enter. Confirm *flat index 459* in the selection panel.
+#figure(image("screenshots/03-select-edit.jpg",width:153mm),caption:[Live selected connection and editor before submission. The input contains 100 and the quick parameter-probe mode is selected.])
+== Presenter actions
++ Enter `100` in *New stored value*.
++ Keep *Selected parameter probe · quick* selected.
++ Click *Create edit & rerun demonstration*.
++ Wait for *Experiment completed*, then click *Open experiment evidence*.
+#text(size:9pt,fill:muted)[The source is preserved. New candidate and restored checkpoint copies are measured against it.]
+#pagebreak()
+#label("Screen walkthrough / 04")
+= Compare before and after repair
+The screenshots below come from the same completed live fixture run. The phase selector changes which checkpoint assessment is displayed.
+#figure(image("screenshots/04-before.jpg",width:100%),caption:[Before repair: one changed element, zero nonfinite values, 49,152 fixture parameters across 12 tensors.])
+#figure(image("screenshots/05-after.jpg",width:100%),caption:[After repair: zero changed elements and zero nonfinite values. The selected tensor has been restored from the reference.])
+== Show measured recovery
+In *Experiment evidence*, point out `changed_outputs: 8`, the candidate's changed probe hash and `exact_forward_recovery: true`. Eight of 512 probe outputs changed; every repaired output bit matches the reference.
+#text(size:8.5pt,fill:muted)[Captured job: `lab/1795810714198-1/demo.json`. The earlier verified run in `examples/connection-edit.json` produces the same probe hashes.]
+#pagebreak()
+#label("Screen walkthrough / 05")
+= Show the real Qwen execution trace
+Open `qwen-activation/comparison.json`, expand the first candidate's *Recorded activation trace* and select observation 2. Keep *Generation step 0* selected for the initial matching-input comparison.
+#figure(image("screenshots/06-qwen-trace.jpg",width:158mm),caption:[Live recorded Qwen candidate execution. The selected first query projection is changed and contains five nonfinite values; the parallel key and value projections remain exact.])
+== Presenter actions
++ Identify `model.layers.0.self_attn.q_proj`, operation *linear*, as the first changed and nonfinite recorded boundary.
++ Compare observation 2 with the finite, exact key and value outputs immediately below it.
++ Use *Only changed outputs* to narrow the list, then *Show execution on checkpoint graph* to overlay the recorded observations on the registered checkpoint.
++ Return to the comparison summary and show verified recovery of the recorded repaired logits and activations.
+#text(size:9pt,fill:muted)[The Qwen fault is deliberately seeded. The trace measures numerical propagation, not a naturally occurring vulnerability or individual neuron semantics.]
