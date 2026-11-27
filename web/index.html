@@ -7,19 +7,182 @@
 <header><h1>LLMIUM</h1><span>CHECKPOINT OBSERVATORY</span></header>
 <main><h2>Follow the evidence through the weights.</h2><p>Inspect numerical health, localize checkpoint changes, and verify reference restoration.</p>
 <div class="toolbar"><select id="reports" aria-label="Report"></select><button id="load">Open report</button><label><input type="file" id="file" accept="application/json"> Local report</label><select id="phase" aria-label="Demo phase"><option value="before">Before repair</option><option value="after">After repair</option></select></div>
-<p id="status" role="status">Loading reports…</p><div class="stats" id="stats"></div>
+<p id="status" role="status">Loading reports…</p>
+<section id="runtime" hidden><h3>Full-model runtime evidence</h3><p id="runtime-summary"></p><div id="runtime-evaluations"></div></section>
+<div id="assessment"><div class="stats" id="stats"></div>
 <div class="columns"><section class="card"><h3>Layer map</h3><div id="graph" class="graph"></div><p>Layers are grouped from tensor names. Select a layer to filter its tensors.</p><button id="clear">Show all tensors</button></section><section class="card"><h3>Experiment evidence</h3><pre id="experiment">Open a report to inspect evidence.</pre></section></div>
 <div class="columns"><section class="card"><h3>Findings</h3><div id="findings"></div></section><section class="card"><h3>Tensor detail</h3><pre id="detail">Select a tensor.</pre></section></div>
 <section class="card"><div class="toolbar"><h3>Tensor inventory</h3><input id="search" placeholder="Filter tensor names" aria-label="Filter tensor names"></div><div id="tablewrap"><table><thead><tr><th>Tensor</th><th>Shape</th><th>Type</th><th>Nonfinite</th><th>Changed</th></tr></thead><tbody id="rows"></tbody></table></div></section>
-</main>
+</div></main>
 <script>
-let documentData, report, layer=null;
-const $=id=>document.getElementById(id);
-function element(tag,text,cls){const e=document.createElement(tag);e.textContent=text;if(cls)e.className=cls;return e}
-function layerName(name){const m=name.match(/(?:layers|blocks|h)\.(\d+)/);return m?m[1]:'other'}
-function render(){report=documentData.before?documentData[$('phase').value]:documentData;if(!report||!Array.isArray(report.tensors))throw Error('Choose an LLMIUM scan or demo report');$('phase').hidden=!documentData.before;$('stats').replaceChildren();for(const [label,value] of [['PARAMETERS',report.parameters.toLocaleString()],['TENSORS',report.tensors.length],['NONFINITE',report.tensors.reduce((n,t)=>n+t.nonfinite,0)],['CHANGED ELEMENTS',report.reference?report.tensors.reduce((n,t)=>n+(t.changed_elements||0),0).toLocaleString():'No reference']]){const c=element('div','','card');c.append(element('span',label,'label'),element('strong',value));$('stats').append(c)}$('status').textContent=(documentData.synthetic?'SYNTHETIC DEMONSTRATION · ':documentData.seeded_fault?'SEEDED NUMERICAL FAULT · ':'')+report.coverage;$('experiment').textContent=documentData.forward_pass?JSON.stringify({experiment:documentData.experiment,forward_pass:documentData.forward_pass,exact_forward_recovery:documentData.exact_forward_recovery,limits:documentData.limits},null,2):report.interpretation;$('findings').replaceChildren();for(const f of report.findings){const e=element('div','','finding');e.append(element('strong',f.rule,f.severity==='high'?'high':''),element('p',f.tensor+' — '+f.evidence));$('findings').append(e)}if(!report.findings.length)$('findings').append(element('p','No findings under implemented checks.'));$('graph').replaceChildren();const groups=[...new Set(report.tensors.map(t=>layerName(t.name)))];for(const g of groups){const ts=report.tensors.filter(t=>layerName(t.name)===g);const b=element('button','','node'+(ts.some(t=>t.nonfinite||t.changed_elements)?' warn':''));b.append(element('strong',g==='other'?'Other':'Layer '+g),element('span',ts.length+' tensors'));b.onclick=()=>{layer=g;table()};$('graph').append(b)}$('detail').textContent='Select a tensor.';table()}
-function table(){$('rows').replaceChildren();const filtered=report.tensors.filter(t=>(layer===null||layerName(t.name)===layer)&&t.name.includes($('search').value));for(const t of filtered){const row=element('tr','');for(const v of [t.name,t.shape.join(' × '),t.dtype,t.nonfinite,t.changed_elements??'—'])row.append(element('td',v));row.onclick=()=>{$('detail').textContent=JSON.stringify(t,null,2)};$('rows').append(row)}}
-async function openReport(){try{const response=await fetch('/api/report?path='+encodeURIComponent($('reports').value));if(!response.ok)throw Error('Report unavailable');documentData=await response.json();layer=null;render()}catch(e){$('status').textContent=e.message}}
-$('load').onclick=openReport;$('phase').onchange=()=>{try{render()}catch(e){$('status').textContent=e.message}};$('clear').onclick=()=>{layer=null;table()};$('search').oninput=()=>{if(report)table()};$('file').onchange=async e=>{try{documentData=JSON.parse(await e.target.files[0].text());layer=null;render()}catch(error){$('status').textContent=error.message}};
-fetch('/api/reports').then(r=>r.json()).then(paths=>{$('reports').replaceChildren(...paths.map(p=>{const o=element('option',p);o.value=p;return o}));if(paths.length){$('reports').value=paths.find(p=>p.startsWith('qwen-rust')&&p.endsWith('/demo.json'))||(paths.includes('rust-demo/demo.json')?'rust-demo/demo.json':paths[0]);openReport();}else $('status').textContent='Import a report or run llmium demo.'}).catch(()=>{$('status').textContent='Import a local LLMIUM report.'});
+let documentData;
+let report;
+let layer = null;
+let loadSequence = 0;
+const $ = id => document.getElementById(id);
+
+function element(tag, text, className) {
+    const node = document.createElement(tag);
+    node.textContent = text;
+    if (className) node.className = className;
+    return node;
+}
+
+function layerName(name) {
+    const match = name.match(/(?:layers|blocks|h)\.(\d+)/);
+    return match ? match[1] : 'other';
+}
+
+function renderRuntime() {
+    const comparison = documentData.report_type === 'runtime_comparison';
+    const stages = comparison ? ['reference', 'candidate', 'repaired'].map(label => [label, documentData.stages[label]]) : [['evaluation', documentData]];
+    $('phase').hidden = true;
+    $('assessment').hidden = true;
+    $('runtime').hidden = false;
+    $('status').textContent = comparison ? 'CONTROLLED FULL-MODEL COMPARISON' : 'FULL-MODEL RUNTIME EVALUATION';
+    $('runtime-summary').textContent = comparison ?
+        'Verified recovery ' + documentData.recovery_verified + ' · Exact logit recovery ' + documentData.exact_logit_recovery +
+        ' · Candidate nonfinite logits ' + documentData.candidate_nonfinite_logits :
+        documentData.runtime + ' · ' + documentData.dtype + ' · ' + documentData.decoding;
+    $('runtime-evaluations').replaceChildren();
+    for (const [label, stage] of stages) {
+      if (!Array.isArray(stage.evaluations)) throw Error('Runtime report has no evaluations');
+      for (const evaluation of stage.evaluations) {
+        const card = element('section', '', 'card');
+        card.style.marginBottom = '18px';
+        card.append(element('p', label.toUpperCase() + ' · ' + stage.dtype, 'label'));
+        card.append(element('h3', evaluation.prompt));
+        card.append(element('p', evaluation.generated_text || 'Generation stopped before decoded output.'));
+        const failed = evaluation.steps.some(step => step.nonfinite_logits > 0);
+        card.append(element('p', evaluation.stop_reason, failed ? 'high' : 'good'));
+        const evidence = element('details', '');
+        evidence.append(element('summary', 'Token and logit evidence'));
+        evidence.append(element('pre', JSON.stringify({
+            input_token_ids: evaluation.input_token_ids,
+            generated_token_ids: evaluation.generated_token_ids,
+            steps: evaluation.steps,
+            elapsed_seconds: evaluation.elapsed_seconds
+        }, null, 2)));
+        card.append(evidence);
+        $('runtime-evaluations').append(card);
+      }
+    }
+    $('runtime-evaluations').append(element('p', documentData.interpretation));
+}
+
+function render() {
+    if (['runtime_evaluation', 'runtime_comparison'].includes(documentData.report_type)) {
+        renderRuntime();
+        return;
+    }
+    report = documentData.before ? documentData[$('phase').value] : documentData;
+    if (!report || !Array.isArray(report.tensors)) throw Error('Choose an LLMIUM assessment, demo, or runtime report');
+    $('runtime').hidden = true;
+    $('assessment').hidden = false;
+    $('phase').hidden = !documentData.before;
+    $('stats').replaceChildren();
+    const metrics = [
+        ['PARAMETERS', report.parameters.toLocaleString()],
+        ['TENSORS', report.tensors.length],
+        ['NONFINITE', report.tensors.reduce((sum, tensor) => sum + tensor.nonfinite, 0)],
+        ['CHANGED ELEMENTS', report.reference ? report.tensors.reduce((sum, tensor) => sum + (tensor.changed_elements || 0), 0).toLocaleString() : 'No reference']
+    ];
+    for (const [label, value] of metrics) {
+        const card = element('div', '', 'card');
+        card.append(element('span', label, 'label'), element('strong', value));
+        $('stats').append(card);
+    }
+    let experimentLabel = '';
+    if (documentData.synthetic) experimentLabel = 'SYNTHETIC DEMONSTRATION · ';
+    else if (documentData.seeded_fault) experimentLabel = 'SEEDED NUMERICAL FAULT · ';
+    $('status').textContent = experimentLabel + report.coverage;
+    $('experiment').textContent = documentData.forward_pass ? JSON.stringify({
+        experiment: documentData.experiment,
+        forward_pass: documentData.forward_pass,
+        exact_forward_recovery: documentData.exact_forward_recovery,
+        limits: documentData.limits
+    }, null, 2) : report.interpretation;
+    $('findings').replaceChildren();
+    for (const finding of report.findings) {
+        const node = element('div', '', 'finding');
+        node.append(element('strong', finding.rule, finding.severity === 'high' ? 'high' : ''));
+        node.append(element('p', finding.tensor + ' — ' + finding.evidence));
+        $('findings').append(node);
+    }
+    if (!report.findings.length) $('findings').append(element('p', 'No findings under implemented checks.'));
+    $('graph').replaceChildren();
+    const groups = [...new Set(report.tensors.map(tensor => layerName(tensor.name)))];
+    groups.sort((a, b) => a.localeCompare(b, undefined, {numeric: true}));
+    for (const group of groups) {
+        const tensors = report.tensors.filter(tensor => layerName(tensor.name) === group);
+        const changed = tensors.some(tensor => tensor.nonfinite || tensor.changed_elements);
+        const button = element('button', '', 'node' + (changed ? ' warn' : ''));
+        button.append(element('strong', group === 'other' ? 'Other' : 'Layer ' + group));
+        button.append(element('span', tensors.length + ' tensors'));
+        button.onclick = () => { layer = group; table(); };
+        $('graph').append(button);
+    }
+    $('detail').textContent = 'Select a tensor.';
+    table();
+}
+
+function table() {
+    if (!report) return;
+    $('rows').replaceChildren();
+    const filtered = report.tensors.filter(tensor =>
+        (layer === null || layerName(tensor.name) === layer) && tensor.name.includes($('search').value));
+    for (const tensor of filtered) {
+        const row = element('tr', '');
+        for (const value of [tensor.name, tensor.shape.join(' × '), tensor.dtype, tensor.nonfinite, tensor.changed_elements ?? '—']) {
+            row.append(element('td', value));
+        }
+        row.onclick = () => { $('detail').textContent = JSON.stringify(tensor, null, 2); };
+        $('rows').append(row);
+    }
+}
+
+async function openReport() {
+    const sequence = ++loadSequence;
+    try {
+        const response = await fetch('/api/report?path=' + encodeURIComponent($('reports').value));
+        if (!response.ok) throw Error('Report unavailable');
+        const data = await response.json();
+        if (sequence !== loadSequence) return;
+        documentData = data;
+        layer = null;
+        render();
+    } catch (error) {
+        if (sequence === loadSequence) $('status').textContent = error.message;
+    }
+}
+
+$('load').onclick = openReport;
+$('phase').onchange = () => {
+    try { render(); } catch (error) { $('status').textContent = error.message; }
+};
+$('clear').onclick = () => { layer = null; table(); };
+$('search').oninput = table;
+$('file').onchange = async event => {
+    ++loadSequence;
+    try {
+        documentData = JSON.parse(await event.target.files[0].text());
+        layer = null;
+        render();
+    } catch (error) { $('status').textContent = error.message; }
+};
+
+fetch('/api/reports').then(response => response.json()).then(paths => {
+    $('reports').replaceChildren(...paths.map(path => {
+        const option = element('option', path);
+        option.value = path;
+        return option;
+    }));
+    if (!paths.length) {
+        $('status').textContent = 'Import a report or run llmium demo.';
+        return;
+    }
+    $('reports').value = paths.find(path => path.startsWith('qwen-rust') && path.endsWith('/demo.json')) ||
+        (paths.includes('rust-demo/demo.json') ? 'rust-demo/demo.json' : paths[0]);
+    openReport();
+}).catch(() => { $('status').textContent = 'Import a local LLMIUM report.'; });
 </script></html>

@@ -12,6 +12,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[cfg(feature = "inference")]
+mod inference;
+
 #[derive(Parser)]
 #[command(
     version,
@@ -47,6 +50,37 @@ enum Command {
         reference: PathBuf,
         #[arg(long)]
         tensor: String,
+        #[arg(long)]
+        output: PathBuf,
+    },
+    Evaluate {
+        model: PathBuf,
+        #[arg(long)]
+        assets: PathBuf,
+        #[arg(long, required = true)]
+        prompt: Vec<String>,
+        #[arg(long, default_value_t = 8)]
+        max_new_tokens: usize,
+        #[arg(long, default_value = "bf16", value_parser = ["bf16", "f32"])]
+        dtype: String,
+        #[arg(long)]
+        output: PathBuf,
+    },
+    RuntimeCompare {
+        #[arg(long)]
+        reference: PathBuf,
+        #[arg(long)]
+        candidate: PathBuf,
+        #[arg(long)]
+        repaired: PathBuf,
+        #[arg(long)]
+        assets: PathBuf,
+        #[arg(long, required = true)]
+        prompt: Vec<String>,
+        #[arg(long, default_value_t = 8)]
+        max_new_tokens: usize,
+        #[arg(long, default_value = "bf16", value_parser = ["bf16", "f32"])]
+        dtype: String,
         #[arg(long)]
         output: PathBuf,
     },
@@ -608,6 +642,76 @@ fn mcp_result(request: &Value) -> Result<Value> {
 }
 fn main() -> Result<()> {
     match Cli::parse().command {
+        Command::RuntimeCompare {
+            reference,
+            candidate,
+            repaired,
+            assets,
+            prompt,
+            max_new_tokens,
+            dtype,
+            output,
+        } => {
+            ensure!(
+                !output.exists(),
+                "Runtime comparison output must be a new file"
+            );
+            #[cfg(feature = "inference")]
+            {
+                let stages = [
+                    ("reference", reference.as_path()),
+                    ("candidate", candidate.as_path()),
+                    ("repaired", repaired.as_path()),
+                ];
+                let result = inference::compare(&stages, &assets, &prompt, max_new_tokens, &dtype)?;
+                write_json(&output, &result)?;
+                println!(
+                    "{}",
+                    json!({"report":output,"recovery_verified":result["recovery_verified"],"candidate_nonfinite_logits":result["candidate_nonfinite_logits"]})
+                );
+            }
+            #[cfg(not(feature = "inference"))]
+            {
+                let _ = (
+                    reference,
+                    candidate,
+                    repaired,
+                    assets,
+                    prompt,
+                    max_new_tokens,
+                    dtype,
+                );
+                bail!(
+                    "Build full-model evaluation with cargo build --release --features inference"
+                );
+            }
+        }
+        Command::Evaluate {
+            model,
+            assets,
+            prompt,
+            max_new_tokens,
+            dtype,
+            output,
+        } => {
+            ensure!(!output.exists(), "Evaluation output must be a new file");
+            #[cfg(feature = "inference")]
+            {
+                let report = inference::evaluate(&model, &assets, &prompt, max_new_tokens, &dtype)?;
+                write_json(&output, &report)?;
+                println!(
+                    "{}",
+                    json!({"report":output,"evaluations":report["evaluations"].as_array().unwrap().len()})
+                );
+            }
+            #[cfg(not(feature = "inference"))]
+            {
+                let _ = (model, assets, prompt, max_new_tokens, dtype);
+                bail!(
+                    "Build full-model evaluation with cargo build --release --features inference"
+                );
+            }
+        }
         Command::Scan {
             path,
             reference,

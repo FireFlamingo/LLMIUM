@@ -12,6 +12,8 @@ Implemented findings measure numerical health and exact element differences. Leg
 
 VerIDeep studies integrity verification with sensitive input samples. It establishes prior work connecting parameter changes to observable outputs. Its results do not establish performance for this implementation or for billion-parameter language models. [VerIDeep](https://arxiv.org/abs/1808.03277)
 
+ROME uses causal interventions to localize factual recall and edits feed-forward weights to change factual associations. MEMIT extends direct model editing to many associations. These establish substantial prior art for locating and changing model behavior through weights. LLMIUM cannot claim that weight-level inspection or editing is a new research direction. [ROME](https://arxiv.org/abs/2202.05262), [MEMIT](https://arxiv.org/abs/2210.07229)
+
 Safetensors defines names, shapes, dtypes and explicit offsets. It provides the container used by this implementation. Numerical and behavioral assessment extends beyond container validation. [Safetensors](https://github.com/safetensors/safetensors)
 
 The real-checkpoint evaluation uses the published Qwen2.5 1.5B Instruct model. Record file digests and the downloaded revision with the evidence. [Qwen model card](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct)
@@ -26,6 +28,10 @@ General semantic vulnerability discovery, automatic trigger identification, full
 
 Measure clean baselines, seeded faults, legitimate fine-tunes and dtype conversions separately. Report coverage, elapsed time, memory, false positives and missed cases. Calibrate statistical thresholds on independent data before testing. Validate behavioral claims using held-out inputs. A clean numerical scan covers the implemented checks.
 
+The defensible product contribution is an integrated, reproducible workflow from checkpoint evidence to localized change, runtime observations and verified restoration. A research contribution would need an independently evaluated localization method, a new vulnerability class or measured gains over existing integrity and model-editing methods. The current seeded experiment establishes none of those novelty claims.
+
+For runtime evaluation, retain per-step logit hashes and generated token IDs for clean, changed and restored checkpoints with identical assets and settings. Repeat a prompt after another request to test cache reset. Compare finite-logit counts before interpreting generated text. Exact output recovery on a few prompts establishes those observations only. It does not establish universal behavioral equivalence for different runtimes, hardware or inputs.
+
 ## Five-minute demo
 
 1. Run `llmium demo --output runs/demo2` using a fresh directory.
@@ -36,5 +42,5 @@ Measure clean baselines, seeded faults, legitimate fine-tunes and dtype conversi
 6. Switch to After repair and show zero differences and exact output recovery.
 7. Open the real Qwen report when available and describe its measured coverage.
 
-The Rust implementation currently validates synthetic forward recovery. A full language-model runtime experiment remains pending. Check generated evidence before making claims.
+The Rust implementation validates synthetic and real-checkpoint matrix recovery. The optional runtime adapter records full language-model comparisons separately. Check the generated evidence before making claims. [DEMO.md](DEMO.md) provides the presentation sequence and reproducible commands.
 

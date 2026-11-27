@@ -44,6 +44,23 @@ Run `llmium mcp` as a stdio MCP server. It exposes `assess_checkpoint` with a re
 }
 ```
 
+## Full model runtime evaluation
+
+The optional Candle adapter runs Qwen2 and Qwen2.5 checkpoints locally on CPU. It uses the checkpoint files and tokenizer assets already on disk. Build it with Rust.
+
+```bash
+~/.cargo/bin/cargo build --release --features inference
+RAYON_NUM_THREADS=2 ./target/release/llmium evaluate models/Qwen2.5-1.5B-Instruct --assets models/Qwen2.5-1.5B-Instruct --prompt 'The capital of France is' --max-new-tokens 4 --output runs/runtime.json
+```
+
+The controlled workflow loads the reference, candidate and repaired checkpoints sequentially. It clears the KV cache between prompts, uses deterministic greedy decoding, records token IDs and hashes every output logit vector. Nonfinite logits stop decoding and are recorded as a numerical failure. BF16 is the default. F32 requires substantially more memory.
+
+```bash
+RAYON_NUM_THREADS=2 ./target/release/llmium runtime-compare --reference models/Qwen2.5-1.5B-Instruct --candidate runs/qwen-rust-buffered/candidate --repaired runs/qwen-rust-buffered/repaired --assets models/Qwen2.5-1.5B-Instruct --prompt 'The capital of France is' --prompt 'Two plus two equals' --prompt 'The capital of France is' --max-new-tokens 4 --output runs/qwen-runtime/comparison.json
+```
+
+Use a new output filename for each run. The report binds observations to checkpoint, configuration and tokenizer hashes. Verified recovery requires matching checkpoint hashes, identical generated tokens and logit hashes, and finite reference and repaired logits. Open runtime reports in the same local viewer. This adapter evaluates raw prompt continuations. Apply a model's chat template explicitly when evaluating chat behavior.
+
 ## Verification
 
 ```bash
