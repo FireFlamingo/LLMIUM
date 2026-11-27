@@ -26,7 +26,7 @@ The prototype checks every supported element for finite values, compares compati
 
 The completed Qwen2.5 1.5B Instruct experiment covers 338 tensors and 1,543,714,304 stored parameters. A single seeded NaN was localized to index 0 in the first layer's query projection. Full-model BF16 CPU evaluation used two distinct prompts and repeated the first, with a four-token greedy limit. Each candidate evaluation stopped with 151,936 nonfinite logits on the first step. Reference and repaired evaluations had finite logits, identical token sequences and identical per-step logit hashes. The repaired file hash matched the publisher checkpoint. Evidence is preserved in `examples/qwen-demo.json` and `examples/qwen-runtime.json`.
 
-General semantic vulnerability discovery, automatic trigger identification, full neuron connectivity and tenant isolation assessment remain research work. The layer map groups tensor names. Statistical classification and cryptographic provenance verification require additional implementation and evaluation.
+General semantic vulnerability discovery, automatic trigger identification, causal interpretation of individual neurons and tenant isolation assessment remain research work. The checkpoint atlas inventories every stored tensor and validates a Qwen2 architecture-derived module graph. Its connection diagrams read actual bounded matrix tiles with exact bytes and optional reference comparison. They describe selected parameter coordinates and declared architecture dataflow. Statistical classification and cryptographic provenance verification require additional implementation and evaluation.
 
 ## Evaluation plan
 

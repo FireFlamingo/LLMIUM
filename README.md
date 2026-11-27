@@ -1,6 +1,6 @@
 # LLMIUM
 
-A Rust workbench for open-weight checkpoint assessment, exact reference comparison, verified tensor restoration, a local layer explorer and a read-only MCP interface.
+A Rust workbench for open-weight checkpoint assessment, exact reference comparison, verified tensor restoration, a hierarchical network and weight explorer and a read-only MCP interface.
 
 ## Build and run
 
@@ -32,7 +32,7 @@ Repair requires a new output directory and a compatible trusted reference. It re
 
 ## Agent interface
 
-Run `llmium mcp` as a stdio MCP server. It exposes `assess_checkpoint` with a required `path` and optional `reference`, plus `tensor_slice` for bounded reads of actual tensor values. The slice tool requires `path` and `tensor`, and accepts `offset` and `count` up to 4096 elements. It uses newline-delimited JSON-RPC and MCP protocol version 2024-11-05. Paths use the server's filesystem. An agent host can launch the WSL binary with a configuration like this.
+Run `llmium mcp` as a stdio MCP server. It exposes `assess_checkpoint` with a required `path` and optional `reference`, plus `tensor_slice` for bounded reads of actual tensor values. The slice tool requires `path` and `tensor`, and accepts `offset` and `count` up to 4096 elements. `checkpoint_graph` returns the complete tensor inventory and validated Qwen2 module topology. `tensor_tile` accepts a matrix `row`, `column`, `rows` and `columns`, with each tile dimension between 1 and 64, and an optional `reference` checkpoint. It includes exact raw bytes and changed-cell flags. The server uses newline-delimited JSON-RPC and MCP protocol version 2024-11-05. Paths use the server's filesystem. An agent host can launch the WSL binary with a configuration like this.
 
 ```json
 {
@@ -44,6 +44,27 @@ Run `llmium mcp` as a stdio MCP server. It exposes `assess_checkpoint` with a re
   }
 }
 ```
+
+## Explore the network and actual weights
+
+Register the checkpoints that the read-only viewer may inspect. IDs follow registration order. Existing report viewing works without registered checkpoints.
+
+```bash
+./target/release/llmium serve --root runs --checkpoint models/Qwen2.5-1.5B-Instruct --checkpoint runs/qwen-rust-buffered/candidate --checkpoint runs/qwen-rust-buffered/repaired
+```
+
+Choose registered checkpoint 1 and click Inspect checkpoint. The Qwen2 adapter validates tensor shapes and shows all decoder blocks, attention projections, residual paths, gated MLP modules, normalization, embedding and the tied output head. Select a module to inspect its parameters. Set Compare to checkpoint 0 to highlight exact byte changes. In layer 0's query projection, row 0 and column 0 show the seeded NaN. Select a cell to inspect its flat index and raw little-endian bytes.
+
+Matrix heatmaps and connection diagrams read actual bounded tiles. Row, column, next-page and flat-index controls address other weights throughout the checkpoint. Vector and scalar tensors are also readable. Higher-rank tensors remain in the inventory and can be inspected with flattened `tensor-slice` reads. Keep checkpoint files immutable while browsing.
+
+The native commands provide the same data.
+
+```bash
+./target/release/llmium graph models/Qwen2.5-1.5B-Instruct --output runs/qwen-atlas.json
+./target/release/llmium tensor-tile runs/qwen-rust-buffered/candidate --reference models/Qwen2.5-1.5B-Instruct --tensor model.layers.0.self_attn.q_proj.weight --row 0 --column 0 --rows 16 --columns 16
+```
+
+Exported atlas JSON works as an offline metadata report. Actual tile reads require a registered live checkpoint. Qwen2 topology is architecture-derived and shape-validated. It represents module dataflow. Connection diagrams represent selected parameter coordinates; they do not establish the semantic role or causal activation of individual neurons. Other model families receive a complete tensor inventory without an invented topology.
 
 ## Full model runtime evaluation
 
@@ -76,7 +97,7 @@ Include the runtime adapter when checking an inference build.
 ~/.cargo/bin/cargo clippy --release --all-targets --features inference -- -D warnings
 ```
 
-The implementation includes a synthetic fault experiment, malformed-container rejection and repair overwrite checks. The layer map groups tensor names. General semantic vulnerability discovery, complete neuron connectivity and multi-tenant isolation assessment remain research work. See [RESEARCH.md](RESEARCH.md) for positioning and evaluation requirements.
+The implementation includes a synthetic fault experiment, malformed-container rejection, repair overwrite checks, tile bounds and raw-byte comparisons, and topology compatibility checks. The assessment layer map groups tensor names; the atlas additionally validates Qwen2 module dataflow. General semantic vulnerability discovery, causal neuron interpretation and multi-tenant isolation assessment remain research work. See [RESEARCH.md](RESEARCH.md) for positioning and evaluation requirements.
 
 ## Real checkpoint experiment
 
@@ -84,7 +105,7 @@ The implementation includes a synthetic fault experiment, malformed-container re
 ./target/release/llmium experiment models/Qwen2.5-1.5B-Instruct --tensor model.layers.0.self_attn.q_proj.weight --output runs/qwen-rust-buffered
 ```
 
-This creates a checkpoint copy with one explicitly seeded NaN, compares every supported tensor element, restores the selected tensor and checks actual matrix forward outputs. It measures the selected linear module. Full language-model generation requires a separate runtime evaluation. The viewer labels this experiment as a seeded numerical fault.
+This creates a checkpoint copy with one explicitly seeded NaN, preserves adjacent JSON model assets, compares every supported tensor element, restores the selected tensor and checks actual matrix forward outputs. It measures the selected linear module. Full language-model generation requires a separate runtime evaluation. The viewer labels this experiment as a seeded numerical fault.
 
 
 

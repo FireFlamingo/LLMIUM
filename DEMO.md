@@ -10,7 +10,7 @@ From Kali WSL, use the existing reports for a quick presentation. The reports co
 
 ```bash
 cd /mnt/d/Projects/LLMIUM
-./target/release/llmium serve --root runs
+./target/release/llmium serve --root runs --checkpoint models/Qwen2.5-1.5B-Instruct --checkpoint runs/qwen-rust-buffered/candidate --checkpoint runs/qwen-rust-buffered/repaired
 ```
 
 Open [the local viewer](http://127.0.0.1:8765). If the generated run directories are unavailable, serve the committed evidence snapshots.
@@ -28,6 +28,7 @@ Open [the local viewer](http://127.0.0.1:8765). If the generated run directories
 5. Show the actual selected-matrix computation with eight nonfinite outputs. Choose After repair and show zero reference differences and exact matrix-output recovery.
 6. Open `qwen-runtime/comparison.json` from runs or `qwen-runtime.json` from examples. Show verified recovery and 455,808 candidate nonfinite logits across three prompt evaluations. The clean and repaired continuation for `The capital of France is` is ` Paris. The capital`. The candidate stops on nonfinite logits. Expand token and logit evidence to show exact restored hashes. The first prompt was repeated after a different request and produced the same healthy outputs.
 7. Explain that the MCP interface lets an agent request an assessment or read a bounded tensor slice. The trusted reference supplies the restoration bytes.
+8. Choose registered checkpoint 1 and click Inspect checkpoint. Select layer 0, then its Q projection module. Set Compare to checkpoint 0. Show the orange weight at row 0, column 0, its raw bytes and its connection line. Select checkpoint 2 and repeat the comparison to show zero changed cells in the restored tile. Use flat-index and page controls to inspect other parameter coordinates.
 
 ## Reproduce the experiment
 
@@ -48,7 +49,7 @@ RAYON_NUM_THREADS=2 ./target/release/llmium runtime-compare --reference models/Q
 | Can weights read another user's active conversation? | The serving runtime owns request contexts and caches. Cross-user access requires a demonstrated isolation failure in that runtime. |
 | Is weight editing new? | ROME, MEMIT, Weight-Space Programming, Keel and integrity-verification research establish prior art. LLMIUM's current contribution is the integrated evidence workflow. |
 | Is restoring one tensor always safe? | Restoration needs a compatible trusted reference and behavioral validation. Replacing fine-tuned weights can remove legitimate behavior. |
-| Does the layer map show every neuron and connection? | It groups tensors from checkpoint names. Complete computation graphs and neuron-level interpretation remain future work. |
+| What does the network explorer show? | It inventories every tensor, validates Qwen2 module dataflow and reads actual paged weight connections. Semantic neuron roles and causal activations need further analysis. |
 | Does zero findings mean secure? | It means the implemented checks found no numerical or reference-difference findings for that input. |
 
 Research references and evaluation limits are recorded in [RESEARCH.md](RESEARCH.md).

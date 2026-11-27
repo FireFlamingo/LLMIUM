@@ -12,6 +12,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+mod atlas;
 #[cfg(feature = "inference")]
 mod inference;
 
@@ -26,6 +27,26 @@ struct Cli {
 }
 #[derive(Subcommand)]
 enum Command {
+    Graph {
+        path: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+    },
+    TensorTile {
+        path: PathBuf,
+        #[arg(long)]
+        reference: Option<PathBuf>,
+        #[arg(long)]
+        tensor: String,
+        #[arg(long, default_value_t = 0)]
+        row: usize,
+        #[arg(long, default_value_t = 0)]
+        column: usize,
+        #[arg(long, default_value_t = 16)]
+        rows: usize,
+        #[arg(long, default_value_t = 16)]
+        columns: usize,
+    },
     TensorSlice {
         path: PathBuf,
         #[arg(long)]
@@ -98,6 +119,8 @@ enum Command {
         root: PathBuf,
         #[arg(long, default_value_t = 8765)]
         port: u16,
+        #[arg(long)]
+        checkpoint: Vec<PathBuf>,
     },
     Mcp,
 }
@@ -297,6 +320,20 @@ fn write_json(path: &Path, value: &Value) -> Result<()> {
     fs::write(path, serde_json::to_vec_pretty(value)?)?;
     Ok(())
 }
+fn copy_checkpoint_json(path: &Path, output: &Path) -> Result<()> {
+    let root = if path.is_dir() {
+        path
+    } else {
+        path.parent().unwrap_or(Path::new("."))
+    };
+    for entry in fs::read_dir(root)? {
+        let file = entry?.path();
+        if file.is_file() && file.extension().is_some_and(|e| e == "json") {
+            fs::copy(&file, output.join(file.file_name().unwrap()))?;
+        }
+    }
+    Ok(())
+}
 fn repair(path: &Path, reference: &Path, output: &Path, names: &[String]) -> Result<Value> {
     ensure!(!output.exists(), "Output must be a new directory");
     ensure!(!names.is_empty(), "Select at least one tensor");
@@ -337,17 +374,7 @@ fn repair(path: &Path, reference: &Path, output: &Path, names: &[String]) -> Res
             }
         }
     }
-    let root = if path.is_dir() {
-        path
-    } else {
-        path.parent().unwrap_or(Path::new("."))
-    };
-    for entry in fs::read_dir(root)? {
-        let file = entry?.path();
-        if file.is_file() && file.extension().is_some_and(|e| e == "json") {
-            fs::copy(&file, staging.path().join(file.file_name().unwrap()))?;
-        }
-    }
+    copy_checkpoint_json(path, staging.path())?;
     let verified = scan(staging.path(), Some(reference))?;
     for name in names {
         ensure!(
@@ -480,6 +507,7 @@ fn experiment(reference: &Path, target: &str, output: &Path) -> Result<Value> {
     for file in &cp.files {
         fs::copy(file, candidate.join(file.file_name().unwrap()))?;
     }
+    copy_checkpoint_json(reference, &candidate)?;
     for (file, map) in cp.files.iter().zip(&cp.maps) {
         if let Ok(view) = SafeTensors::deserialize(map)?.tensor(target) {
             let offset = view.data().as_ptr() as usize - map.as_ptr() as usize;
@@ -514,8 +542,15 @@ fn experiment(reference: &Path, target: &str, output: &Path) -> Result<Value> {
     write_json(&output.join("demo.json"), &result)?;
     Ok(result)
 }
-fn serve(root: &Path, port: u16) -> Result<()> {
+fn serve(root: &Path, port: u16, checkpoints: &[PathBuf]) -> Result<()> {
     let root = fs::canonicalize(root)?;
+    let checkpoints = checkpoints
+        .iter()
+        .map(fs::canonicalize)
+        .collect::<io::Result<Vec<_>>>()?;
+    for checkpoint in &checkpoints {
+        Checkpoint::open(checkpoint)?;
+    }
     let server =
         tiny_http::Server::http(("127.0.0.1", port)).map_err(|e| anyhow::anyhow!("{e}"))?;
     println!("LLMIUM viewer http://127.0.0.1:{port}");
@@ -530,6 +565,14 @@ fn serve(root: &Path, port: u16) -> Result<()> {
                 "/" => Ok((
                     include_bytes!("../web/index.html").to_vec(),
                     "text/html; charset=utf-8",
+                )),
+                "/atlas.js" => Ok((
+                    include_bytes!("../web/atlas.js").to_vec(),
+                    "text/javascript; charset=utf-8",
+                )),
+                "/api/checkpoints" | "/api/checkpoint" | "/api/tensor-tile" => Ok((
+                    serde_json::to_vec(&atlas::http_request(&url, &checkpoints)?)?,
+                    "application/json",
                 )),
                 "/api/reports" => {
                     let mut files = Vec::new();
@@ -625,11 +668,23 @@ fn mcp_result(request: &Value) -> Result<Value> {
         "ping" => Ok(json!({})),
         "tools/list" => Ok(
             json!({"tools":[{"name":"assess_checkpoint","description":"Full numerical health and optional reference comparison","inputSchema":{"type":"object","properties":{"path":{"type":"string"},"reference":{"type":"string"}},"required":["path"]}},
-                {"name":"tensor_slice","description":"Read a bounded flattened slice of actual tensor values","inputSchema":{"type":"object","properties":{"path":{"type":"string"},"tensor":{"type":"string"},"offset":{"type":"integer","minimum":0},"count":{"type":"integer","minimum":0,"maximum":4096}},"required":["path","tensor"]}}]}),
+                {"name":"tensor_slice","description":"Read a bounded flattened slice of actual tensor values","inputSchema":{"type":"object","properties":{"path":{"type":"string"},"tensor":{"type":"string"},"offset":{"type":"integer","minimum":0},"count":{"type":"integer","minimum":0,"maximum":4096}},"required":["path","tensor"]}},
+                {"name":"checkpoint_graph","description":"Inspect every stored tensor and validated Qwen2 architecture topology","inputSchema":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}},
+                {"name":"tensor_tile","description":"Read a bounded matrix tile with exact raw bytes and optional reference differences","inputSchema":{"type":"object","properties":{"path":{"type":"string"},"reference":{"type":"string"},"tensor":{"type":"string"},"row":{"type":"integer","minimum":0},"column":{"type":"integer","minimum":0},"rows":{"type":"integer","minimum":1,"maximum":64},"columns":{"type":"integer","minimum":1,"maximum":64}},"required":["path","tensor"]}}]}),
         ),
         "tools/call" => {
             let result = (|| -> Result<Value> {
                 let a = &params["arguments"];
+                if params["name"] == "checkpoint_graph" {
+                    return atlas::graph(Path::new(a["path"].as_str().context("Missing path")?));
+                }
+                if params["name"] == "tensor_tile" {
+                    return atlas::tile(
+                        Path::new(a["path"].as_str().context("Missing path")?),
+                        a["reference"].as_str().map(Path::new),
+                        a,
+                    );
+                }
                 if params["name"] == "tensor_slice" {
                     return tensor_slice(a);
                 }
@@ -651,6 +706,33 @@ fn mcp_result(request: &Value) -> Result<Value> {
 }
 fn main() -> Result<()> {
     match Cli::parse().command {
+        Command::Graph { path, output } => {
+            ensure!(!output.exists(), "Graph output must be a new file");
+            let report = atlas::graph(&path)?;
+            write_json(&output, &report)?;
+            println!(
+                "{}",
+                json!({"report":output,"tensors":report["tensors"].as_array().unwrap().len(),"topology":report["topology"]["adapter"]})
+            );
+        }
+        Command::TensorTile {
+            path,
+            reference,
+            tensor,
+            row,
+            column,
+            rows,
+            columns,
+        } => {
+            println!(
+                "{}",
+                atlas::tile(
+                    &path,
+                    reference.as_deref(),
+                    &json!({"tensor":tensor,"row":row,"column":column,"rows":rows,"columns":columns})
+                )?
+            );
+        }
         Command::TensorSlice {
             path,
             tensor,
@@ -768,7 +850,11 @@ fn main() -> Result<()> {
                 json!({"report":output.join("demo.json"),"recovered":r["exact_forward_recovery"]})
             );
         }
-        Command::Serve { root, port } => serve(&root, port)?,
+        Command::Serve {
+            root,
+            port,
+            checkpoint,
+        } => serve(&root, port, &checkpoint)?,
         Command::Mcp => {
             for line in io::stdin().lock().lines() {
                 let line = line?;
@@ -856,6 +942,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let reference = dir.path().join("reference.safetensors");
         fixture(&reference, false).unwrap();
+        let config = br#"{"model_type":"fixture","hidden_size":64}"#;
+        fs::write(dir.path().join("config.json"), config).unwrap();
         let result = experiment(
             &reference,
             "model.layers.0.self_attn.q_proj.weight",
@@ -866,6 +954,18 @@ mod tests {
         assert_eq!(result["exact_forward_recovery"], true);
         assert_eq!(result["forward_pass"]["candidate"]["nonfinite_outputs"], 8);
         assert_eq!(result["after"]["findings"], json!([]));
+        for stage in ["candidate", "repaired"] {
+            assert_eq!(
+                fs::read(
+                    dir.path()
+                        .join("experiment")
+                        .join(stage)
+                        .join("config.json")
+                )
+                .unwrap(),
+                config
+            );
+        }
     }
 
     #[test]

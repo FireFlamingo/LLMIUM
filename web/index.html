@@ -4,16 +4,41 @@
 <style>
 :root{font-family:Segoe UI,Arial,sans-serif;color:#dce6e5;background:#0b1215}*{box-sizing:border-box}body{margin:0}header{padding:26px 36px;border-bottom:1px solid #26373b;display:flex;justify-content:space-between;align-items:center}h1{font-size:24px;letter-spacing:3px;margin:0}header span{font-size:12px;color:#8ba5a5}main{padding:30px 36px;max-width:1600px;margin:auto}h2{font-weight:400;font-size:32px;margin:0 0 10px}p{color:#8da5ac;line-height:1.5}select,input,button{background:#152329;color:#dce6e5;border:1px solid #365059;padding:11px;border-radius:5px}button{cursor:pointer}button:hover{border-color:#70e1be}.toolbar{display:flex;gap:12px;flex-wrap:wrap;margin:25px 0}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.card{border:1px solid #263d42;background:#101d22;padding:20px;border-radius:8px}.card strong{display:block;font-size:28px;margin-top:10px}.label{font-size:12px;letter-spacing:1px;color:#8da5ac}.columns{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:20px 0}.graph{display:flex;gap:8px;flex-wrap:wrap;padding:18px 0}.node{min-width:85px;text-align:left}.node strong{display:block;color:#70e1be;font-size:16px}.node.warn{border-color:#dc9373}.node.active{background:#254b45}h3{font-weight:500;margin:0 0 14px}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;color:#c4d6d8}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:13px 8px;text-align:left;border-bottom:1px solid #24363a}td:first-child{word-break:break-all}th{color:#8da5ac}tr{cursor:pointer}tr:hover{background:#19302f}.high{color:#ffad89}.good{color:#70e1be}.finding{padding:12px 0;border-bottom:1px solid #293d41}#status{min-height:24px}#tablewrap{overflow:auto;max-height:440px}@media(max-width:850px){.stats{grid-template-columns:repeat(2,1fr)}.columns{grid-template-columns:1fr}main{padding:20px}header{padding:20px}}
 </style>
+<style>
+.atlas-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.atlas-controls input[type=number]{width:100px}.atlas-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;margin:20px 0}.atlas-scroll{overflow:auto;max-height:620px}.atlas-diagram{display:block;width:100%;min-width:650px}.atlas-diagram text{fill:#dce6e5;font:13px Segoe UI,Arial,sans-serif}.atlas-diagram .module rect{fill:#152a30;stroke:#40656b}.atlas-diagram .module[role=button]{cursor:pointer}.atlas-diagram .module[role=button]:hover rect,.atlas-diagram .module:focus rect{stroke:#70e1be;stroke-width:3}.atlas-diagram .module.selected rect{stroke:#70e1be;stroke-width:3}.atlas-tensor{max-width:100%;width:100%}.weight-table td,.weight-table th{padding:3px}.weight-table button{padding:5px;min-width:57px;font-size:11px;border-color:#294449}.weight-table button.fault{background:#81452f!important;color:white}.weight-table button.drift{outline:2px solid #efb47d;outline-offset:-2px}.atlas-note{font-size:12px}.atlas-group{margin-bottom:14px}.atlas-group button{margin:3px}#atlas-connections{min-width:620px;width:100%;display:block}#atlas-connections text{fill:#b6d0d1;font:12px Segoe UI,Arial,sans-serif}@media(max-width:1050px){.atlas-columns{grid-template-columns:1fr}}
+</style>
+<style>
+.toolbar>select{max-width:100%}.atlas-controls label{max-width:100%;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.atlas-controls select{min-width:0;max-width:100%}.atlas-columns>.card{min-width:0}@media(max-width:1050px){.atlas-columns{grid-template-columns:minmax(0,1fr)}}
+</style>
 <header><h1>LLMIUM</h1><span>CHECKPOINT OBSERVATORY</span></header>
 <main><h2>Follow the evidence through the weights.</h2><p>Inspect numerical health, localize checkpoint changes, and verify reference restoration.</p>
 <div class="toolbar"><select id="reports" aria-label="Report"></select><button id="load">Open report</button><label><input type="file" id="file" accept="application/json"> Local report</label><select id="phase" aria-label="Demo phase"><option value="before">Before repair</option><option value="after">After repair</option></select></div>
+<div class="toolbar"><select id="atlas-model" aria-label="Registered checkpoint"></select><button id="atlas-open">Inspect checkpoint</button><span id="atlas-registration" class="atlas-note"></span></div>
 <p id="status" role="status">Loading reports…</p>
+<section id="atlas" hidden>
+<h3>Network and parameter explorer</h3><p id="atlas-summary"></p><p id="atlas-basis" class="atlas-note"></p>
+<section class="card"><h3>Model dataflow</h3><div id="atlas-endpoints" class="atlas-group"></div><div id="atlas-layers" class="graph"></div></section>
+<div class="atlas-columns">
+<section class="card"><h3 id="atlas-block-heading">Decoder block</h3><div class="atlas-scroll"><svg id="atlas-block" class="atlas-diagram" viewBox="0 0 900 1260" role="img" aria-label="Decoder block dataflow"></svg></div><p class="atlas-note">Select a parameterized module to inspect its weights. Arrows describe the architecture adapter's dataflow. Residual paths run along the sides.</p></section>
+<section class="card"><h3>Actual parameter bytes</h3>
+<div class="toolbar"><input id="atlas-filter" placeholder="Find a tensor" aria-label="Find atlas tensor"></div>
+<select id="atlas-tensor" class="atlas-tensor" aria-label="Atlas tensor"></select><p id="atlas-tensor-shape"></p>
+<div class="atlas-controls"><label>Compare <select id="atlas-reference" aria-label="Tile reference"></select></label><label>Tile size <select id="atlas-size" aria-label="Weight tile size"><option>8</option><option selected>16</option><option>32</option><option>64</option></select></label></div>
+<div class="toolbar atlas-controls"><label>Row <input id="atlas-row" type="number" min="0" value="0"></label><label>Column <input id="atlas-column" type="number" min="0" value="0"></label><button id="atlas-read">Read tile</button></div>
+<div class="atlas-controls"><button id="atlas-next-row">Next rows</button><button id="atlas-next-column">Next columns</button><label>Flat index <input id="atlas-flat" type="number" min="0" value="0"></label><button id="atlas-jump">Go to index</button></div>
+<p id="atlas-tile-status" role="status"></p><div class="atlas-scroll"><table id="atlas-weight-table" class="weight-table" aria-label="Actual weight matrix tile"></table></div>
+<pre id="atlas-cell">Select a weight to inspect its raw representation.</pre>
+</section></div>
+<section class="card"><h3>Connections in the selected matrix tile</h3><p class="atlas-note">Columns and rows are parameter coordinates. Each line is an actual stored weight. Green is positive, pink is negative, and orange marks nonfinite or changed values. This view covers the selected tile; use row, column or flat-index navigation to inspect other coordinates.</p><div class="atlas-scroll"><svg id="atlas-connections" viewBox="0 0 720 460" role="img" aria-label="Weight connections for the selected tile"></svg></div></section>
+<p id="atlas-limits" class="atlas-note"></p>
+</section>
 <section id="runtime" hidden><h3>Full-model runtime evidence</h3><p id="runtime-summary"></p><div id="runtime-evaluations"></div></section>
 <div id="assessment"><div class="stats" id="stats"></div>
 <div class="columns"><section class="card"><h3>Layer map</h3><div id="graph" class="graph"></div><p>Layers are grouped from tensor names. Select a layer to filter its tensors.</p><button id="clear">Show all tensors</button></section><section class="card"><h3>Experiment evidence</h3><pre id="experiment">Open a report to inspect evidence.</pre></section></div>
 <div class="columns"><section class="card"><h3>Findings</h3><div id="findings"></div></section><section class="card"><h3>Tensor detail</h3><pre id="detail">Select a tensor.</pre></section></div>
 <section class="card"><div class="toolbar"><h3>Tensor inventory</h3><input id="search" placeholder="Filter tensor names" aria-label="Filter tensor names"></div><div id="tablewrap"><table><thead><tr><th>Tensor</th><th>Shape</th><th>Type</th><th>Nonfinite</th><th>Changed</th></tr></thead><tbody id="rows"></tbody></table></div></section>
 </div></main>
+<script src="/atlas.js"></script>
 <script>
 let documentData;
 let report;
@@ -34,6 +59,8 @@ function layerName(name) {
 }
 
 function renderRuntime() {
+    window.atlasUI.cancel();
+    $('atlas').hidden = true;
     const comparison = documentData.report_type === 'runtime_comparison';
     const stages = comparison ? ['reference', 'candidate', 'repaired'].map(label => [label, documentData.stages[label]]) : [['evaluation', documentData]];
     $('phase').hidden = true;
@@ -71,6 +98,12 @@ function renderRuntime() {
 }
 
 function render() {
+    if (documentData.report_type === 'checkpoint_atlas') {
+        window.atlasUI.show(documentData, null);
+        return;
+    }
+    window.atlasUI.cancel();
+    $('atlas').hidden = true;
     if (['runtime_evaluation', 'runtime_comparison'].includes(documentData.report_type)) {
         renderRuntime();
         return;
@@ -142,6 +175,7 @@ function table() {
 }
 
 async function openReport() {
+    window.atlasUI.cancel();
     const sequence = ++loadSequence;
     try {
         const response = await fetch('/api/report?path=' + encodeURIComponent($('reports').value));
@@ -163,20 +197,25 @@ $('phase').onchange = () => {
 $('clear').onclick = () => { layer = null; table(); };
 $('search').oninput = table;
 $('file').onchange = async event => {
-    ++loadSequence;
+    window.atlasUI.cancel();
+    const sequence = ++loadSequence;
     try {
-        documentData = JSON.parse(await event.target.files[0].text());
+        const data = JSON.parse(await event.target.files[0].text());
+        if (sequence !== loadSequence) return;
+        documentData = data;
         layer = null;
         render();
-    } catch (error) { $('status').textContent = error.message; }
+    } catch (error) { if (sequence === loadSequence) $('status').textContent = error.message; }
 };
 
+window.atlasUI.initialize(() => { ++loadSequence; });
 fetch('/api/reports').then(response => response.json()).then(paths => {
     $('reports').replaceChildren(...paths.map(path => {
         const option = element('option', path);
         option.value = path;
         return option;
     }));
+    if (loadSequence !== 0) return;
     if (!paths.length) {
         $('status').textContent = 'Import a report or run llmium demo.';
         return;
@@ -184,5 +223,5 @@ fetch('/api/reports').then(response => response.json()).then(paths => {
     $('reports').value = paths.find(path => path.startsWith('qwen-rust') && path.endsWith('/demo.json')) ||
         (paths.includes('rust-demo/demo.json') ? 'rust-demo/demo.json' : paths[0]);
     openReport();
-}).catch(() => { $('status').textContent = 'Import a local LLMIUM report.'; });
+}).catch(() => { if (loadSequence === 0) $('status').textContent = 'Import a local LLMIUM report.'; });
 </script></html>
