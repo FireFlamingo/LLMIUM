@@ -23,7 +23,7 @@ Open http://127.0.0.1:8765 and select `rust-demo/demo.json`. Inspect layer 2 and
 ./target/release/llmium repair models/candidate --reference models/trusted --tensor model.layers.2.mlp.down_proj.weight --output models/restored
 ```
 
-Inputs are a safetensors file or directory of shards. The safetensors crate validates structure. Every supported element is inspected using read-only memory mapping. Reports contain per-tensor SHA-256, numerical health statistics, exact changed-element counts and the first changed indices. Integer statistical summaries use float64. Element differences compare raw bytes.
+Inputs are a safetensors file or directory of shards. The safetensors crate validates structure. Headers are validated through read-only memory mapping. Every supported element is scanned using bounded buffered reads and streaming hashes. Reports contain per-tensor SHA-256, numerical health statistics, exact changed-element counts and the first changed indices. Integer statistical summaries use float64. Element differences compare raw bytes.
 
 NaNs and infinities receive high numerical-health findings. All-zero tensors receive informational findings because zero biases are common. Reference differences receive review findings. These findings describe measured properties. Security vulnerability classification, CWE mapping and CVSS scoring require demonstrated security impact.
 
@@ -31,7 +31,7 @@ Repair requires a new output directory and a compatible trusted reference. It re
 
 ## Agent interface
 
-Run `llmium mcp` as a stdio MCP server. It exposes the read-only `assess_checkpoint` tool with a required `path` and optional `reference`. It uses newline-delimited JSON-RPC and MCP protocol version 2024-11-05. Paths use the server's filesystem. An agent host can launch the WSL binary with a configuration like this.
+Run `llmium mcp` as a stdio MCP server. It exposes `assess_checkpoint` with a required `path` and optional `reference`, plus `tensor_slice` for bounded reads of actual tensor values. The slice tool requires `path` and `tensor`, and accepts `offset` and `count` up to 4096 elements. It uses newline-delimited JSON-RPC and MCP protocol version 2024-11-05. Paths use the server's filesystem. An agent host can launch the WSL binary with a configuration like this.
 
 ```json
 {
@@ -56,7 +56,17 @@ The implementation includes a synthetic fault experiment, malformed-container re
 ## Real checkpoint experiment
 
 ```bash
-./target/release/llmium experiment models/Qwen2.5-1.5B-Instruct --tensor model.layers.0.self_attn.q_proj.weight --output runs/qwen-rust
+./target/release/llmium experiment models/Qwen2.5-1.5B-Instruct --tensor model.layers.0.self_attn.q_proj.weight --output runs/qwen-rust-buffered
 ```
 
 This creates a checkpoint copy with one explicitly seeded NaN, compares every supported tensor element, restores the selected tensor and checks actual matrix forward outputs. It measures the selected linear module. Full language-model generation requires a separate runtime evaluation. The viewer labels this experiment as a seeded numerical fault.
+
+
+
+## Measured Qwen assessment
+
+The local Rust experiment inspected 1,543,714,304 stored parameters across 338 tensors from Qwen2.5-1.5B-Instruct. The downloaded file matched the publisher SHA-256 `dd924a11b4c220f385b51ffa522daea7c9f3d850e31b162bb5661df483c6d3ee`.
+
+The candidate contains an explicitly seeded NaN at flattened index 0 in the BF16 matrix `model.layers.0.self_attn.q_proj.weight` with shape 1536 by 1536. The full comparison reported one nonfinite value and one changed element. Two findings describe the same seeded fault, numerical health and reference drift. This experiment does not establish a naturally occurring security vulnerability.
+
+The completed experiment restored zero reference differences and zero implemented-check findings. The repaired checkpoint SHA-256 matches the publisher file exactly. A forward computation through the actual selected Qwen matrix produced eight nonfinite outputs with the fault, zero after restoration, and exact output recovery. The reproducible evidence snapshot is in `examples/qwen-demo.json`. Full language-model generation and semantic vulnerability discovery remain pending.

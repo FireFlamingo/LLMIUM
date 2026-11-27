@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     fs::{self, File},
-    io::{self, BufRead, Seek, SeekFrom, Write},
+    io::{self, BufRead, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
 };
 
@@ -64,6 +64,18 @@ struct Checkpoint {
     maps: Vec<Mmap>,
 }
 impl Checkpoint {
+    fn reader(&self, tensor: &safetensors::tensor::TensorView<'_>) -> Result<File> {
+        let pointer = tensor.data().as_ptr() as usize;
+        for (path, map) in self.files.iter().zip(&self.maps) {
+            let base = map.as_ptr() as usize;
+            if pointer >= base && pointer + tensor.data().len() <= base + map.len() {
+                let mut file = File::open(path)?;
+                file.seek(SeekFrom::Start((pointer - base) as u64))?;
+                return Ok(file);
+            }
+        }
+        bail!("Tensor storage unavailable")
+    }
     fn open(path: &Path) -> Result<Self> {
         let mut files = if path.is_dir() {
             fs::read_dir(path)?
@@ -109,8 +121,18 @@ impl Checkpoint {
         Ok(result)
     }
 }
-fn hash(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+fn file_hash(path: &Path) -> Result<String> {
+    let mut file = File::open(path)?;
+    let mut buffer = vec![0u8; 1024 * 1024];
+    let mut hasher = Sha256::new();
+    loop {
+        let read = file.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
 }
 fn number(bytes: &[u8], dtype: Dtype) -> Result<f64> {
     Ok(match dtype {
@@ -153,35 +175,53 @@ fn scan(path: &Path, reference: Option<&Path>) -> Result<Value> {
         let (mut sum, mut squares, mut maximum, mut delta_square) =
             (0.0f64, 0.0f64, 0.0f64, 0.0f64);
         let mut indices = Vec::new();
-        for (index, bytes) in tensor.data().chunks_exact(width).enumerate() {
-            let value = number(bytes, dtype)?;
-            if value.is_finite() {
-                finite += 1;
-                zeros += usize::from(value == 0.0);
-                sum += value;
-                squares += value * value;
-                maximum = maximum.max(value.abs());
-            } else {
-                nonfinite += 1;
+        let mut reader = cp.reader(tensor)?;
+        let mut ref_reader = compatible
+            .map(|t| baseline.as_ref().unwrap().reader(t))
+            .transpose()?;
+        let mut buffer = vec![0u8; 1024 * 1024];
+        let mut ref_buffer = vec![0u8; buffer.len()];
+        let mut byte_offset = 0;
+        let mut tensor_hasher = Sha256::new();
+        while byte_offset < tensor.data().len() {
+            let length = buffer.len().min(tensor.data().len() - byte_offset);
+            reader.read_exact(&mut buffer[..length])?;
+            tensor_hasher.update(&buffer[..length]);
+            if let Some(reader) = &mut ref_reader {
+                reader.read_exact(&mut ref_buffer[..length])?;
             }
-            if let Some(other) = compatible {
-                let other_bytes = &other.data()[index * width..(index + 1) * width];
-                if bytes != other_bytes {
-                    changed += 1;
-                    if indices.len() < 8 {
-                        indices.push(index);
+            for (local_index, bytes) in buffer[..length].chunks_exact(width).enumerate() {
+                let index = byte_offset / width + local_index;
+                let value = number(bytes, dtype)?;
+                if value.is_finite() {
+                    finite += 1;
+                    zeros += usize::from(value == 0.0);
+                    sum += value;
+                    squares += value * value;
+                    maximum = maximum.max(value.abs());
+                } else {
+                    nonfinite += 1;
+                }
+                if compatible.is_some() {
+                    let other_bytes = &ref_buffer[local_index * width..(local_index + 1) * width];
+                    if bytes != other_bytes {
+                        changed += 1;
+                        if indices.len() < 8 {
+                            indices.push(index);
+                        }
+                    }
+                    let delta = value - number(other_bytes, dtype)?;
+                    if delta.is_finite() {
+                        delta_square += delta * delta;
                     }
                 }
-                let delta = value - number(other_bytes, dtype)?;
-                if delta.is_finite() {
-                    delta_square += delta * delta;
-                }
             }
+            byte_offset += length;
         }
         let count = tensor.data().len() / width;
         parameters += count;
         rows.push(json!({"name":name,"shape":tensor.shape(),"dtype":format!("{dtype:?}"),"parameters":count,
-            "bytes":tensor.data().len(),"sha256":hash(tensor.data()),"finite":finite,"nonfinite":nonfinite,"zeros":zeros,
+            "bytes":tensor.data().len(),"sha256":format!("{:x}",tensor_hasher.finalize()),"finite":finite,"nonfinite":nonfinite,"zeros":zeros,
             "mean":if finite>0 {Some(sum/finite as f64)} else {None},"rms":if finite>0 {Some((squares/finite as f64).sqrt())}else{None},
             "max_abs":maximum,"changed_elements":compatible.map(|_|changed),"first_changed_indices":indices,
             "finite_delta_l2":compatible.map(|_|delta_square.sqrt())}));
@@ -201,7 +241,7 @@ fn scan(path: &Path, reference: Option<&Path>) -> Result<Value> {
     for name in refs.keys().filter(|n| !tensors.contains_key(*n)) {
         findings.push(json!({"severity":"review","rule":"MISSING_TENSOR","tensor":name,"evidence":"Reference tensor absent from candidate"}));
     }
-    let files: Vec<_> = cp.files.iter().zip(&cp.maps).map(|(p,m)| json!({"name":p.file_name().unwrap().to_string_lossy(),"bytes":m.len(),"sha256":hash(m)})).collect();
+    let files: Vec<_> = cp.files.iter().map(|p| Ok(json!({"name":p.file_name().unwrap().to_string_lossy(),"bytes":p.metadata()?.len(),"sha256":file_hash(p)?}))).collect::<Result<_>>()?;
     Ok(
         json!({"schema_version":1,"checkpoint":path,"reference":reference,"parameters":parameters,"tensors":rows,"findings":findings,"files":files,
         "coverage":"All supported tensor elements scanned","interpretation":"Numerical health and reference differences require behavioral validation. Reference trust is supplied by the operator."}),
@@ -497,6 +537,42 @@ fn list_reports(root: &Path, dir: &Path, result: &mut Vec<String>) -> Result<()>
     result.sort();
     Ok(())
 }
+fn tensor_slice(args: &Value) -> Result<Value> {
+    let path = Path::new(args["path"].as_str().context("Missing path")?);
+    let cp = Checkpoint::open(path)?;
+    let tensors = cp.tensors()?;
+    let name = args["tensor"].as_str().context("Missing tensor")?;
+    let tensor = tensors.get(name).context("Unknown tensor")?;
+    let width = tensor.dtype().bitsize() / 8;
+    ensure!(width > 0, "Unsupported packed dtype");
+    let offset = usize::try_from(
+        args.get("offset")
+            .map(|v| v.as_u64().context("Offset must be a nonnegative integer"))
+            .transpose()?
+            .unwrap_or(0),
+    )?;
+    let count = usize::try_from(
+        args.get("count")
+            .map(|v| v.as_u64().context("Count must be a nonnegative integer"))
+            .transpose()?
+            .unwrap_or(64),
+    )?;
+    ensure!(count <= 4096, "Read at most 4096 elements per call");
+    let end = offset.checked_add(count).context("Slice overflow")?;
+    ensure!(end <= tensor.data().len() / width, "Slice outside tensor");
+    let mut values = Vec::new();
+    for bytes in tensor.data()[offset * width..end * width].chunks_exact(width) {
+        let value = number(bytes, tensor.dtype())?;
+        values.push(if value.is_finite() {
+            json!(value)
+        } else {
+            json!(value.to_string())
+        });
+    }
+    Ok(
+        json!({"tensor":name,"shape":tensor.shape(),"dtype":format!("{:?}",tensor.dtype()),"offset":offset,"values":values}),
+    )
+}
 fn mcp_result(request: &Value) -> Result<Value> {
     let params = &request["params"];
     match request["method"].as_str().unwrap_or("") {
@@ -505,12 +581,16 @@ fn mcp_result(request: &Value) -> Result<Value> {
         ),
         "ping" => Ok(json!({})),
         "tools/list" => Ok(
-            json!({"tools":[{"name":"assess_checkpoint","description":"Full numerical health and optional reference comparison","inputSchema":{"type":"object","properties":{"path":{"type":"string"},"reference":{"type":"string"}},"required":["path"]}}]}),
+            json!({"tools":[{"name":"assess_checkpoint","description":"Full numerical health and optional reference comparison","inputSchema":{"type":"object","properties":{"path":{"type":"string"},"reference":{"type":"string"}},"required":["path"]}},
+                {"name":"tensor_slice","description":"Read a bounded flattened slice of actual tensor values","inputSchema":{"type":"object","properties":{"path":{"type":"string"},"tensor":{"type":"string"},"offset":{"type":"integer","minimum":0},"count":{"type":"integer","minimum":0,"maximum":4096}},"required":["path","tensor"]}}]}),
         ),
         "tools/call" => {
             let result = (|| -> Result<Value> {
-                ensure!(params["name"] == "assess_checkpoint", "Unknown tool");
                 let a = &params["arguments"];
+                if params["name"] == "tensor_slice" {
+                    return tensor_slice(a);
+                }
+                ensure!(params["name"] == "assess_checkpoint", "Unknown tool");
                 scan(
                     Path::new(a["path"].as_str().context("Missing path")?),
                     a["reference"].as_str().map(Path::new),
@@ -634,5 +714,52 @@ mod tests {
             number(&u64::MAX.to_le_bytes(), Dtype::U64).unwrap(),
             u64::MAX as f64
         );
+    }
+
+    #[test]
+    fn bf16_and_f16_nonfinite_decoding() {
+        assert!(number(&0x7fc0u16.to_le_bytes(), Dtype::BF16)
+            .unwrap()
+            .is_nan());
+        assert!(number(&0x7e00u16.to_le_bytes(), Dtype::F16)
+            .unwrap()
+            .is_nan());
+        assert_eq!(number(&0x3f80u16.to_le_bytes(), Dtype::BF16).unwrap(), 1.0);
+    }
+
+    #[test]
+    fn checkpoint_matrix_experiment_recovers_exactly() {
+        let dir = tempfile::tempdir().unwrap();
+        let reference = dir.path().join("reference.safetensors");
+        fixture(&reference, false).unwrap();
+        let result = experiment(
+            &reference,
+            "model.layers.0.self_attn.q_proj.weight",
+            &dir.path().join("experiment"),
+        )
+        .unwrap();
+        assert_eq!(result["seeded_fault"], true);
+        assert_eq!(result["exact_forward_recovery"], true);
+        assert_eq!(result["forward_pass"]["candidate"]["nonfinite_outputs"], 8);
+        assert_eq!(result["after"]["findings"], json!([]));
+    }
+
+    #[test]
+    fn tensor_reads_validate_bounds_and_integer_arguments() {
+        let dir = tempfile::tempdir().unwrap();
+        let reference = dir.path().join("reference.safetensors");
+        fixture(&reference, false).unwrap();
+        let mut args = json!({"path":reference,"tensor":"model.layers.0.self_attn.q_proj.weight","offset":0,"count":3});
+        assert_eq!(
+            tensor_slice(&args).unwrap()["values"]
+                .as_array()
+                .unwrap()
+                .len(),
+            3
+        );
+        args["offset"] = json!(-1);
+        assert!(tensor_slice(&args).is_err());
+        args["offset"] = json!(4096);
+        assert!(tensor_slice(&args).is_err());
     }
 }
