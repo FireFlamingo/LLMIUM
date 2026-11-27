@@ -26,6 +26,15 @@ struct Cli {
 }
 #[derive(Subcommand)]
 enum Command {
+    TensorSlice {
+        path: PathBuf,
+        #[arg(long)]
+        tensor: String,
+        #[arg(long, default_value_t = 0)]
+        offset: usize,
+        #[arg(long, default_value_t = 64)]
+        count: usize,
+    },
     Scan {
         path: PathBuf,
         #[arg(long)]
@@ -642,6 +651,17 @@ fn mcp_result(request: &Value) -> Result<Value> {
 }
 fn main() -> Result<()> {
     match Cli::parse().command {
+        Command::TensorSlice {
+            path,
+            tensor,
+            offset,
+            count,
+        } => {
+            println!(
+                "{}",
+                tensor_slice(&json!({"path":path,"tensor":tensor,"offset":offset,"count":count}))?
+            );
+        }
         Command::RuntimeCompare {
             reference,
             candidate,

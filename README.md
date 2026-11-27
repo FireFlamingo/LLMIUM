@@ -20,6 +20,7 @@ Open http://127.0.0.1:8765 and select `rust-demo/demo.json`. Inspect layer 2 and
 ```bash
 ./target/release/llmium scan models/model --output runs/assessment.json
 ./target/release/llmium scan models/candidate --reference models/trusted --output runs/comparison.json
+./target/release/llmium tensor-slice models/candidate --tensor model.layers.2.mlp.down_proj.weight --offset 0 --count 16
 ./target/release/llmium repair models/candidate --reference models/trusted --tensor model.layers.2.mlp.down_proj.weight --output models/restored
 ```
 
@@ -68,6 +69,13 @@ Use a new output filename for each run. The report binds observations to checkpo
 ~/.cargo/bin/cargo clippy --all-targets -- -D warnings
 ```
 
+Include the runtime adapter when checking an inference build.
+
+```bash
+~/.cargo/bin/cargo test --release --features inference
+~/.cargo/bin/cargo clippy --release --all-targets --features inference -- -D warnings
+```
+
 The implementation includes a synthetic fault experiment, malformed-container rejection and repair overwrite checks. The layer map groups tensor names. General semantic vulnerability discovery, complete neuron connectivity and multi-tenant isolation assessment remain research work. See [RESEARCH.md](RESEARCH.md) for positioning and evaluation requirements.
 
 ## Real checkpoint experiment
@@ -86,4 +94,15 @@ The local Rust experiment inspected 1,543,714,304 stored parameters across 338 t
 
 The candidate contains an explicitly seeded NaN at flattened index 0 in the BF16 matrix `model.layers.0.self_attn.q_proj.weight` with shape 1536 by 1536. The full comparison reported one nonfinite value and one changed element. Two findings describe the same seeded fault, numerical health and reference drift. This experiment does not establish a naturally occurring security vulnerability.
 
-The completed experiment restored zero reference differences and zero implemented-check findings. The repaired checkpoint SHA-256 matches the publisher file exactly. A forward computation through the actual selected Qwen matrix produced eight nonfinite outputs with the fault, zero after restoration, and exact output recovery. The reproducible evidence snapshot is in `examples/qwen-demo.json`. Full language-model generation and semantic vulnerability discovery remain pending.
+The completed experiment restored zero reference differences and zero implemented-check findings. The repaired checkpoint SHA-256 matches the publisher file exactly. A forward computation through the actual selected Qwen matrix produced eight nonfinite outputs with the fault, zero after restoration, and exact output recovery. The reproducible evidence snapshot is in `examples/qwen-demo.json`.
+
+The full Qwen model was also evaluated with the Rust Candle CPU adapter using BF16 and greedy decoding. Two distinct raw prompts were supplied, with the first repeated after the second, and a four-token generation limit. The complete reference, candidate and repaired comparison took about eleven minutes on this workstation.
+
+| Measurement | Reference | Seeded candidate | Repaired |
+| --- | --- | --- | --- |
+| Prompt evaluations | 3 | 3 | 3 |
+| Nonfinite logits across recorded steps | 0 | 455,808 | 0 |
+| Decoding outcome | Four tokens per prompt | Stopped at first step for every prompt | Four tokens per prompt |
+| Exact checkpoint and runtime recovery | Baseline | Fault observed | Verified |
+
+Every repaired logit hash and generated token sequence matched the reference, and the checkpoint file hash matched exactly. The repeated prompt produced the same tokens and logit hashes within each healthy stage. The continuation for `The capital of France is` was ` Paris. The capital` in both healthy checkpoints. Results cover these prompts and this runtime. The saved evidence is `examples/qwen-runtime.json`. See [DEMO.md](DEMO.md) for a presentation sequence. General semantic vulnerability discovery remains research work.

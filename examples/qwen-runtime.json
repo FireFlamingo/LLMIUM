@@ -1,0 +1,419 @@
+{
+  "candidate_nonfinite_logits": 455808,
+  "checkpoint_hash_recovery": true,
+  "exact_logit_recovery": true,
+  "interpretation": "Controlled full-model observations for the supplied checkpoints, prompts and CPU runtime. Seeded numerical failure demonstrates local propagation and restoration.",
+  "recovery_verified": true,
+  "reference_nonfinite_logits": 0,
+  "repaired_nonfinite_logits": 0,
+  "report_type": "runtime_comparison",
+  "schema_version": 1,
+  "stages": {
+    "candidate": {
+      "assets": "models/Qwen2.5-1.5B-Instruct",
+      "config_sha256": "98d2ff8cc47488d08a2b0b3acf4eb99ef210779b42bd48605f6b8e36acdbf670",
+      "decoding": "greedy, lowest-token-id tie break",
+      "dtype": "BF16",
+      "elapsed_seconds": 160.049912502,
+      "evaluations": [
+        {
+          "elapsed_seconds": 4.950150889,
+          "generated_text": "",
+          "generated_token_ids": [],
+          "input_token_ids": [
+            785,
+            6722,
+            315,
+            9625,
+            374
+          ],
+          "prompt": "The capital of France is",
+          "steps": [
+            {
+              "logits_sha256": "b0ba3595a28b4c7ae5c9e581e843cac4c1d56ce6f3684ebf9bc0b9924c710c7a",
+              "next_token_id": null,
+              "nonfinite_logits": 151936,
+              "step": 0
+            }
+          ],
+          "stop_reason": "nonfinite_logits"
+        },
+        {
+          "elapsed_seconds": 6.2907225239999995,
+          "generated_text": "",
+          "generated_token_ids": [],
+          "input_token_ids": [
+            11613,
+            5519,
+            1378,
+            16819
+          ],
+          "prompt": "Two plus two equals",
+          "steps": [
+            {
+              "logits_sha256": "b0ba3595a28b4c7ae5c9e581e843cac4c1d56ce6f3684ebf9bc0b9924c710c7a",
+              "next_token_id": null,
+              "nonfinite_logits": 151936,
+              "step": 0
+            }
+          ],
+          "stop_reason": "nonfinite_logits"
+        },
+        {
+          "elapsed_seconds": 6.923337007,
+          "generated_text": "",
+          "generated_token_ids": [],
+          "input_token_ids": [
+            785,
+            6722,
+            315,
+            9625,
+            374
+          ],
+          "prompt": "The capital of France is",
+          "steps": [
+            {
+              "logits_sha256": "b0ba3595a28b4c7ae5c9e581e843cac4c1d56ce6f3684ebf9bc0b9924c710c7a",
+              "next_token_id": null,
+              "nonfinite_logits": 151936,
+              "step": 0
+            }
+          ],
+          "stop_reason": "nonfinite_logits"
+        }
+      ],
+      "files": [
+        {
+          "name": "model.safetensors",
+          "sha256": "95c2ff5448df1878647787c9d0b751221e2045a1e4a4c24c7e642d98b509bcf0"
+        }
+      ],
+      "interpretation": "Local full-model observations cover only these prompts and runtime settings. Numerical failure requires attribution to a controlled checkpoint comparison.",
+      "load_seconds": 141.678616984,
+      "max_new_tokens": 4,
+      "model": "runs/qwen-rust-buffered/candidate",
+      "report_type": "runtime_evaluation",
+      "runtime": "candle-qwen2-cpu",
+      "runtime_version": "0.11.1",
+      "schema_version": 1,
+      "tokenizer_sha256": "c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539"
+    },
+    "reference": {
+      "assets": "models/Qwen2.5-1.5B-Instruct",
+      "config_sha256": "98d2ff8cc47488d08a2b0b3acf4eb99ef210779b42bd48605f6b8e36acdbf670",
+      "decoding": "greedy, lowest-token-id tie break",
+      "dtype": "BF16",
+      "elapsed_seconds": 258.128034325,
+      "evaluations": [
+        {
+          "elapsed_seconds": 31.088253351,
+          "generated_text": " Paris. The capital",
+          "generated_token_ids": [
+            12095,
+            13,
+            576,
+            6722
+          ],
+          "input_token_ids": [
+            785,
+            6722,
+            315,
+            9625,
+            374
+          ],
+          "prompt": "The capital of France is",
+          "steps": [
+            {
+              "logits_sha256": "1c661b8e133b9261d448ec6e331fc40053ad490502693943ccd84c63c2a5e37e",
+              "next_token_id": 12095,
+              "nonfinite_logits": 0,
+              "step": 0
+            },
+            {
+              "logits_sha256": "715b81288af80a7932be29aa86122690d56ce8cf78402e5b99ad9cf4301d03be",
+              "next_token_id": 13,
+              "nonfinite_logits": 0,
+              "step": 1
+            },
+            {
+              "logits_sha256": "c1027ac5799277409b90619de7f2855cd2e733b226c2f8f0d536592eb5e08839",
+              "next_token_id": 576,
+              "nonfinite_logits": 0,
+              "step": 2
+            },
+            {
+              "logits_sha256": "69ff16e9f2660214b7f753ec381d661683fa4c9a28504b21f6da838e38b99e6c",
+              "next_token_id": 6722,
+              "nonfinite_logits": 0,
+              "step": 3
+            }
+          ],
+          "stop_reason": "token_limit"
+        },
+        {
+          "elapsed_seconds": 27.414628622,
+          "generated_text": " four, but but",
+          "generated_token_ids": [
+            3040,
+            11,
+            714,
+            714
+          ],
+          "input_token_ids": [
+            11613,
+            5519,
+            1378,
+            16819
+          ],
+          "prompt": "Two plus two equals",
+          "steps": [
+            {
+              "logits_sha256": "290c57bfbd5981fe555b85056117391cd1ee989411399f85e1a9f662c94764ff",
+              "next_token_id": 3040,
+              "nonfinite_logits": 0,
+              "step": 0
+            },
+            {
+              "logits_sha256": "a1632b9b0a8f3bb477ee80aa217ae3d562ab839f13f47ad6c4584299d52ab802",
+              "next_token_id": 11,
+              "nonfinite_logits": 0,
+              "step": 1
+            },
+            {
+              "logits_sha256": "f0fe8ecf715325c945f713ea389f6731368862fcdcdb9330def71a5cd5d2afb6",
+              "next_token_id": 714,
+              "nonfinite_logits": 0,
+              "step": 2
+            },
+            {
+              "logits_sha256": "2fd63b7186e20c17660cceb89741671feb81d6db182e0255a00df24143265955",
+              "next_token_id": 714,
+              "nonfinite_logits": 0,
+              "step": 3
+            }
+          ],
+          "stop_reason": "token_limit"
+        },
+        {
+          "elapsed_seconds": 27.905669622,
+          "generated_text": " Paris. The capital",
+          "generated_token_ids": [
+            12095,
+            13,
+            576,
+            6722
+          ],
+          "input_token_ids": [
+            785,
+            6722,
+            315,
+            9625,
+            374
+          ],
+          "prompt": "The capital of France is",
+          "steps": [
+            {
+              "logits_sha256": "1c661b8e133b9261d448ec6e331fc40053ad490502693943ccd84c63c2a5e37e",
+              "next_token_id": 12095,
+              "nonfinite_logits": 0,
+              "step": 0
+            },
+            {
+              "logits_sha256": "715b81288af80a7932be29aa86122690d56ce8cf78402e5b99ad9cf4301d03be",
+              "next_token_id": 13,
+              "nonfinite_logits": 0,
+              "step": 1
+            },
+            {
+              "logits_sha256": "c1027ac5799277409b90619de7f2855cd2e733b226c2f8f0d536592eb5e08839",
+              "next_token_id": 576,
+              "nonfinite_logits": 0,
+              "step": 2
+            },
+            {
+              "logits_sha256": "69ff16e9f2660214b7f753ec381d661683fa4c9a28504b21f6da838e38b99e6c",
+              "next_token_id": 6722,
+              "nonfinite_logits": 0,
+              "step": 3
+            }
+          ],
+          "stop_reason": "token_limit"
+        }
+      ],
+      "files": [
+        {
+          "name": "model.safetensors",
+          "sha256": "dd924a11b4c220f385b51ffa522daea7c9f3d850e31b162bb5661df483c6d3ee"
+        }
+      ],
+      "interpretation": "Local full-model observations cover only these prompts and runtime settings. Numerical failure requires attribution to a controlled checkpoint comparison.",
+      "load_seconds": 171.504902037,
+      "max_new_tokens": 4,
+      "model": "models/Qwen2.5-1.5B-Instruct",
+      "report_type": "runtime_evaluation",
+      "runtime": "candle-qwen2-cpu",
+      "runtime_version": "0.11.1",
+      "schema_version": 1,
+      "tokenizer_sha256": "c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539"
+    },
+    "repaired": {
+      "assets": "models/Qwen2.5-1.5B-Instruct",
+      "config_sha256": "98d2ff8cc47488d08a2b0b3acf4eb99ef210779b42bd48605f6b8e36acdbf670",
+      "decoding": "greedy, lowest-token-id tie break",
+      "dtype": "BF16",
+      "elapsed_seconds": 232.069643152,
+      "evaluations": [
+        {
+          "elapsed_seconds": 26.089404652,
+          "generated_text": " Paris. The capital",
+          "generated_token_ids": [
+            12095,
+            13,
+            576,
+            6722
+          ],
+          "input_token_ids": [
+            785,
+            6722,
+            315,
+            9625,
+            374
+          ],
+          "prompt": "The capital of France is",
+          "steps": [
+            {
+              "logits_sha256": "1c661b8e133b9261d448ec6e331fc40053ad490502693943ccd84c63c2a5e37e",
+              "next_token_id": 12095,
+              "nonfinite_logits": 0,
+              "step": 0
+            },
+            {
+              "logits_sha256": "715b81288af80a7932be29aa86122690d56ce8cf78402e5b99ad9cf4301d03be",
+              "next_token_id": 13,
+              "nonfinite_logits": 0,
+              "step": 1
+            },
+            {
+              "logits_sha256": "c1027ac5799277409b90619de7f2855cd2e733b226c2f8f0d536592eb5e08839",
+              "next_token_id": 576,
+              "nonfinite_logits": 0,
+              "step": 2
+            },
+            {
+              "logits_sha256": "69ff16e9f2660214b7f753ec381d661683fa4c9a28504b21f6da838e38b99e6c",
+              "next_token_id": 6722,
+              "nonfinite_logits": 0,
+              "step": 3
+            }
+          ],
+          "stop_reason": "token_limit"
+        },
+        {
+          "elapsed_seconds": 27.860940356,
+          "generated_text": " four, but but",
+          "generated_token_ids": [
+            3040,
+            11,
+            714,
+            714
+          ],
+          "input_token_ids": [
+            11613,
+            5519,
+            1378,
+            16819
+          ],
+          "prompt": "Two plus two equals",
+          "steps": [
+            {
+              "logits_sha256": "290c57bfbd5981fe555b85056117391cd1ee989411399f85e1a9f662c94764ff",
+              "next_token_id": 3040,
+              "nonfinite_logits": 0,
+              "step": 0
+            },
+            {
+              "logits_sha256": "a1632b9b0a8f3bb477ee80aa217ae3d562ab839f13f47ad6c4584299d52ab802",
+              "next_token_id": 11,
+              "nonfinite_logits": 0,
+              "step": 1
+            },
+            {
+              "logits_sha256": "f0fe8ecf715325c945f713ea389f6731368862fcdcdb9330def71a5cd5d2afb6",
+              "next_token_id": 714,
+              "nonfinite_logits": 0,
+              "step": 2
+            },
+            {
+              "logits_sha256": "2fd63b7186e20c17660cceb89741671feb81d6db182e0255a00df24143265955",
+              "next_token_id": 714,
+              "nonfinite_logits": 0,
+              "step": 3
+            }
+          ],
+          "stop_reason": "token_limit"
+        },
+        {
+          "elapsed_seconds": 32.449125922,
+          "generated_text": " Paris. The capital",
+          "generated_token_ids": [
+            12095,
+            13,
+            576,
+            6722
+          ],
+          "input_token_ids": [
+            785,
+            6722,
+            315,
+            9625,
+            374
+          ],
+          "prompt": "The capital of France is",
+          "steps": [
+            {
+              "logits_sha256": "1c661b8e133b9261d448ec6e331fc40053ad490502693943ccd84c63c2a5e37e",
+              "next_token_id": 12095,
+              "nonfinite_logits": 0,
+              "step": 0
+            },
+            {
+              "logits_sha256": "715b81288af80a7932be29aa86122690d56ce8cf78402e5b99ad9cf4301d03be",
+              "next_token_id": 13,
+              "nonfinite_logits": 0,
+              "step": 1
+            },
+            {
+              "logits_sha256": "c1027ac5799277409b90619de7f2855cd2e733b226c2f8f0d536592eb5e08839",
+              "next_token_id": 576,
+              "nonfinite_logits": 0,
+              "step": 2
+            },
+            {
+              "logits_sha256": "69ff16e9f2660214b7f753ec381d661683fa4c9a28504b21f6da838e38b99e6c",
+              "next_token_id": 6722,
+              "nonfinite_logits": 0,
+              "step": 3
+            }
+          ],
+          "stop_reason": "token_limit"
+        }
+      ],
+      "files": [
+        {
+          "name": "model.safetensors",
+          "sha256": "dd924a11b4c220f385b51ffa522daea7c9f3d850e31b162bb5661df483c6d3ee"
+        }
+      ],
+      "interpretation": "Local full-model observations cover only these prompts and runtime settings. Numerical failure requires attribution to a controlled checkpoint comparison.",
+      "load_seconds": 145.449767957,
+      "max_new_tokens": 4,
+      "model": "runs/qwen-rust-buffered/repaired",
+      "report_type": "runtime_evaluation",
+      "runtime": "candle-qwen2-cpu",
+      "runtime_version": "0.11.1",
+      "schema_version": 1,
+      "tokenizer_sha256": "c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539"
+    }
+  },
+  "token_sequence_recovery": true
+}

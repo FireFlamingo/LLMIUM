@@ -10,6 +10,8 @@ Implemented findings measure numerical health and exact element differences. Leg
 
 ## Prior work
 
+The November 2, 2026 author article *Sparks of Weight-Space Programming* appears to match the motivating example. It reports a frontier agent diagnosing reasoning loops in Qwen3.5-0.8B and editing weights without gradient training. The November 18 Keel preprint reports agentic weight editing for looping vision-language models. These are direct prior art for agent-guided diagnosis and repair. Their reported benchmark gains have not been independently reproduced in LLMIUM. [Weight-Space Programming](https://rikiyat.github.io/blog/weight-space-programming/), [Keel](https://arxiv.org/abs/2611.25257)
+
 VerIDeep studies integrity verification with sensitive input samples. It establishes prior work connecting parameter changes to observable outputs. Its results do not establish performance for this implementation or for billion-parameter language models. [VerIDeep](https://arxiv.org/abs/1808.03277)
 
 ROME uses causal interventions to localize factual recall and edits feed-forward weights to change factual associations. MEMIT extends direct model editing to many associations. These establish substantial prior art for locating and changing model behavior through weights. LLMIUM cannot claim that weight-level inspection or editing is a new research direction. [ROME](https://arxiv.org/abs/2202.05262), [MEMIT](https://arxiv.org/abs/2210.07229)
@@ -21,6 +23,8 @@ The real-checkpoint evaluation uses the published Qwen2.5 1.5B Instruct model. R
 ## Current evidence and limits
 
 The prototype checks every supported element for finite values, compares compatible tensors byte-for-byte, localizes seeded numerical faults, restores selected tensors into a new directory, and verifies the result. The synthetic linear experiment measures actual fault propagation and exact output recovery. Real-checkpoint claims must be assessed from their generated reports.
+
+The completed Qwen2.5 1.5B Instruct experiment covers 338 tensors and 1,543,714,304 stored parameters. A single seeded NaN was localized to index 0 in the first layer's query projection. Full-model BF16 CPU evaluation used two distinct prompts and repeated the first, with a four-token greedy limit. Each candidate evaluation stopped with 151,936 nonfinite logits on the first step. Reference and repaired evaluations had finite logits, identical token sequences and identical per-step logit hashes. The repaired file hash matched the publisher checkpoint. Evidence is preserved in `examples/qwen-demo.json` and `examples/qwen-runtime.json`.
 
 General semantic vulnerability discovery, automatic trigger identification, full neuron connectivity and tenant isolation assessment remain research work. The layer map groups tensor names. Statistical classification and cryptographic provenance verification require additional implementation and evaluation.
 

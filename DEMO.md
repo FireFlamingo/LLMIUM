@@ -26,7 +26,7 @@ Open [the local viewer](http://127.0.0.1:8765). If the generated run directories
 3. Filter for `model.layers.0.self_attn.q_proj.weight`. Select the tensor row and show BF16, shape 1536 by 1536, and flattened changed index 0.
 4. Explain that the numerical-health and reference-drift findings describe the same parameter change. The experiment injects one NaN into a checkpoint copy.
 5. Show the actual selected-matrix computation with eight nonfinite outputs. Choose After repair and show zero reference differences and exact matrix-output recovery.
-6. When a runtime comparison report is available, open it separately. Compare reference, candidate and repaired prompt results. Expand token and logit evidence. Read the measured recovery status and finite-logit counts before claiming a full-model result.
+6. Open `qwen-runtime/comparison.json` from runs or `qwen-runtime.json` from examples. Show verified recovery and 455,808 candidate nonfinite logits across three prompt evaluations. The clean and repaired continuation for `The capital of France is` is ` Paris. The capital`. The candidate stops on nonfinite logits. Expand token and logit evidence to show exact restored hashes. The first prompt was repeated after a different request and produced the same healthy outputs.
 7. Explain that the MCP interface lets an agent request an assessment or read a bounded tensor slice. The trusted reference supplies the restoration bytes.
 
 ## Reproduce the experiment
@@ -46,7 +46,7 @@ RAYON_NUM_THREADS=2 ./target/release/llmium runtime-compare --reference models/Q
 | Was this flaw discovered in the publisher's checkpoint? | The numerical fault was explicitly seeded into a local copy. The publisher file passed the implemented numerical checks. |
 | Does a changed weight prove an attack? | Legitimate training also changes weights. Intent and security impact need separate evidence. |
 | Can weights read another user's active conversation? | The serving runtime owns request contexts and caches. Cross-user access requires a demonstrated isolation failure in that runtime. |
-| Is weight editing new? | ROME, MEMIT and integrity-verification research establish prior art. LLMIUM's current contribution is the integrated evidence workflow. |
+| Is weight editing new? | ROME, MEMIT, Weight-Space Programming, Keel and integrity-verification research establish prior art. LLMIUM's current contribution is the integrated evidence workflow. |
 | Is restoring one tensor always safe? | Restoration needs a compatible trusted reference and behavioral validation. Replacing fine-tuned weights can remove legitimate behavior. |
 | Does the layer map show every neuron and connection? | It groups tensors from checkpoint names. Complete computation graphs and neuron-level interpretation remain future work. |
 | Does zero findings mean secure? | It means the implemented checks found no numerical or reference-difference findings for that input. |
