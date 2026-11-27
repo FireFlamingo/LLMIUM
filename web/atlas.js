@@ -18,6 +18,7 @@ window.atlasUI = (() => {
     let modelId = null;
     let layer = null;
     let tile;
+    let selectedConnection=null;
     let execution = null;
     let graphEpoch = 0;
     let tileEpoch = 0;
@@ -79,6 +80,7 @@ window.atlasUI = (() => {
     }
 
     function show(report, id) {
+        window.workbenchUI.setView('explorer');
         cancel();
         data = report;
         execution = null;
@@ -223,6 +225,7 @@ window.atlasUI = (() => {
     }
 
     function selectTensor() {
+        selectedConnection=null;window.workbenchUI.clearSelection();
         ++tileEpoch;
         tile = null;
         byId('atlas-row').value = 0; byId('atlas-column').value = 0;
@@ -254,6 +257,7 @@ window.atlasUI = (() => {
             const result = await request('/api/tensor-tile?'+args);
             if (epoch !== tileEpoch) return;
             tile = result;
+            selectedConnection=null;window.workbenchUI.clearSelection();
             byId('atlas-tile-status').textContent = tile.rows*tile.columns+' parameters in this tile · '+tile.nonfinite+' nonfinite'+
                 (tile.changed_cells === null ? ' · No reference comparison' : ' · '+tile.changed_cells+' changed from reference');
             byId('atlas-cell').textContent = JSON.stringify({tile_sha256:tile.tile_sha256,coverage:tile.coverage},null,2);
@@ -274,7 +278,10 @@ window.atlasUI = (() => {
         byId('atlas-cell').textContent = JSON.stringify({tensor:tile.tensor,row:y,column:x,
             flat_index:y*tile.matrix_shape[1]+x,value:tile.values[row][column],raw_little_endian_hex:tile.raw_le_hex[row][column],
             reference_value:tile.reference_values?.[row]?.[column],changed:tile.changed?.[row]?.[column]},null,2);
-        renderConnections([row,column]);
+        selectedConnection=[row,column];
+        window.workbenchUI.selectConnection({model:Number(modelId),tensor:tile.tensor,row:y,column:x,index:y*tile.matrix_shape[1]+x,value:tile.values[row][column],raw:tile.raw_le_hex[row][column],dtype:selectedTensor().dtype});
+        byId('edge-hover').textContent='Selected row '+y+', column '+x+' · value '+tile.values[row][column];
+        renderConnections(selectedConnection);
     }
 
     function renderWeights() {
@@ -314,7 +321,14 @@ window.atlasUI = (() => {
                 stroke:chosen?'#ffffff':(!valid||changed?'#ffad76':value>=0?'#70e1be':'#e591b3'),
                 'stroke-width':chosen?3:(!valid||changed?2:1),opacity:chosen||!valid||changed?1:.08+.65*Math.abs(value)/maximum});
             line.append(svgNode('title',{},`Row ${tile.row+y}, column ${tile.column+x}: ${value}`));
-            svg.append(line);
+            const dy=(y-x)*27, length=Math.hypot(450,dy),ox=-dy/length*6,oy=450/length*6;
+            const hit=svgNode('polygon',{points:`${135+ox},${45+x*27+oy} ${585+ox},${45+y*27+oy} ${585-ox},${45+y*27-oy} ${135-ox},${45+x*27-oy}`,class:'connection-hit',tabindex:0,role:'button',
+                'aria-label':`Select connection row ${tile.row+y} column ${tile.column+x} value ${value}`,'aria-pressed':Boolean(chosen)});
+            const enter=()=>{line.setAttribute('stroke','#e4b965');line.setAttribute('opacity','1');line.setAttribute('stroke-width','3');byId('edge-hover').textContent=`Row ${tile.row+y} · column ${tile.column+x} · flat index ${(tile.row+y)*tile.matrix_shape[1]+tile.column+x} · value ${value}`;};
+            const leave=()=>{line.setAttribute('stroke',chosen?'#ffffff':(!valid||changed?'#ffad76':value>=0?'#70e1be':'#e591b3'));line.setAttribute('opacity',chosen||!valid||changed?'1':String(.08+.65*Math.abs(value)/maximum));line.setAttribute('stroke-width',chosen?'3':(!valid||changed?'2':'1'));};
+            hit.onpointerenter=enter;hit.onpointerleave=leave;hit.onfocus=enter;hit.onblur=leave;
+            hit.onclick=()=>selectCell(y,x);hit.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();selectCell(y,x);}};
+            svg.append(line,hit);
         }
         for (const [count,column,x,textX,anchor] of [[tile.columns,true,135,120,'end'],[tile.rows,false,585,600,'start']]) {
             for (let i=0;i<count;i++) {
@@ -351,7 +365,11 @@ window.atlasUI = (() => {
                 byId('atlas-row').value=Math.floor(index/width);byId('atlas-column').value=index%width;readTile();
             }catch(error){byId('atlas-tile-status').textContent=error.message;}
         };
+        await refreshModels();
+    }
+    async function refreshModels(){
         try {
+            const current=byId('atlas-model').value,reference=byId('atlas-reference').value;
             models=await request('/api/checkpoints');
             byId('atlas-model').replaceChildren(...models.map(model=>{
                 const option=make('option',model.id+' · '+model.path);option.value=model.id;return option;
@@ -360,10 +378,12 @@ window.atlasUI = (() => {
             byId('atlas-reference').replaceChildren(noReference,...models.map(model=>{
                 const option=make('option',model.id+' · '+model.path);option.value=model.id;return option;
             }));
+            if(models.some(model=>String(model.id)===current))byId('atlas-model').value=current;
+            if(models.some(model=>String(model.id)===reference))byId('atlas-reference').value=reference;
             byId('atlas-open').disabled=models.length===0;
-            byId('atlas-registration').textContent=models.length ? models.length+' registered checkpoints · read-only' :
+            byId('atlas-registration').textContent=models.length ? models.length+' registered checkpoints · edits create copies' :
                 'Register models with llmium serve --checkpoint PATH to inspect actual weights.';
         }catch(error){byId('atlas-open').disabled=true;byId('atlas-registration').textContent=error.message;}
     }
-    return {initialize,show,cancel,openExecution};
+    return {initialize,show,cancel,openExecution,refreshModels};
 })();

@@ -83,6 +83,23 @@ fn evaluation(evaluation: &Value) -> Result<Value> {
 }
 
 pub fn comparison(stages: &serde_json::Map<String, Value>) -> Result<Value> {
+    let settings_match = [
+        "config_sha256",
+        "tokenizer_sha256",
+        "runtime",
+        "runtime_version",
+        "dtype",
+        "decoding",
+        "max_new_tokens",
+    ]
+    .iter()
+    .all(|key| {
+        let a = &stages.get("reference").unwrap_or(&Value::Null)[*key];
+        !a.is_null()
+            && ["candidate", "repaired"]
+                .iter()
+                .all(|stage| stages.get(*stage).is_some_and(|value| value[*key] == *a))
+    });
     let reference = stages.get("reference").context("Missing reference stage")?["evaluations"]
         .as_array()
         .context("Missing reference evaluations")?;
@@ -108,13 +125,13 @@ pub fn comparison(stages: &serde_json::Map<String, Value>) -> Result<Value> {
             && a["prompt"] == b["prompt"]
             && a["prompt"] == c["prompt"];
         observations.push(json!({"evaluation":index,"prompt":a["prompt"],"input_tokens_match":same_inputs,
-            "candidate_only_repetition_signal":same_inputs && candidate["bounded_repetition_signal"]==true && reference["bounded_repetition_signal"]==false,
-            "candidate_only_low_diversity_signal":same_inputs && candidate["low_diversity_signal"]==true && reference["low_diversity_signal"]==false,
+            "candidate_only_repetition_signal":same_inputs && settings_match && candidate["bounded_repetition_signal"]==true && reference["bounded_repetition_signal"]==false,
+            "candidate_only_low_diversity_signal":same_inputs && settings_match && candidate["low_diversity_signal"]==true && reference["low_diversity_signal"]==false,
             "recorded_behavior_recovered":reference==repaired && a["generated_token_ids"]==c["generated_token_ids"] && a["stop_reason"]==c["stop_reason"],
             "reference":reference,"candidate":candidate,"repaired":repaired}));
     }
     Ok(
-        json!({"observations":observations,"interpretation":"Controlled descriptive comparison. A candidate-only signal can prioritize review; it does not by itself establish semantic incorrectness, infinite reasoning or exploitability."}),
+        json!({"settings_match":settings_match,"observations":observations,"interpretation":"Controlled descriptive comparison. A candidate-only signal requires matching inputs and recorded runtime settings. It can prioritize review but does not by itself establish semantic incorrectness, infinite reasoning or exploitability."}),
     )
 }
 
@@ -179,6 +196,19 @@ mod tests {
         stages.insert("reference".into(), json!({"evaluations":[clean.clone()]}));
         stages.insert("candidate".into(), json!({"evaluations":[changed]}));
         stages.insert("repaired".into(), json!({"evaluations":[clean]}));
+        for stage in stages.values_mut() {
+            for key in [
+                "config_sha256",
+                "tokenizer_sha256",
+                "runtime",
+                "runtime_version",
+                "dtype",
+                "decoding",
+                "max_new_tokens",
+            ] {
+                stage[key] = json!("same");
+            }
+        }
         assert_eq!(
             comparison(&stages).unwrap()["observations"][0]["candidate_only_repetition_signal"],
             true

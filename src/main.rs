@@ -16,6 +16,7 @@ mod atlas;
 mod behavior;
 #[cfg(feature = "inference")]
 mod inference;
+mod lab;
 mod perturb;
 mod trace_report;
 #[cfg(feature = "inference")]
@@ -165,6 +166,9 @@ enum Command {
         port: u16,
         #[arg(long)]
         checkpoint: Vec<PathBuf>,
+        /// Allow explicit parameter experiments in fresh checkpoint copies under the report root.
+        #[arg(long)]
+        allow_edits: bool,
     },
     Mcp,
 }
@@ -605,7 +609,7 @@ fn validate_viewer_origin(host: Option<&str>, origin: Option<&str>, port: u16) -
     Ok(())
 }
 
-fn serve(root: &Path, port: u16, checkpoints: &[PathBuf]) -> Result<()> {
+fn serve(root: &Path, port: u16, checkpoints: &[PathBuf], allow_edits: bool) -> Result<()> {
     let root = fs::canonicalize(root)?;
     let checkpoints = checkpoints
         .iter()
@@ -614,10 +618,11 @@ fn serve(root: &Path, port: u16, checkpoints: &[PathBuf]) -> Result<()> {
     for checkpoint in &checkpoints {
         Checkpoint::open(checkpoint)?;
     }
+    let lab = lab::Lab::new(root.clone(), checkpoints, allow_edits);
     let server =
         tiny_http::Server::http(("127.0.0.1", port)).map_err(|e| anyhow::anyhow!("{e}"))?;
     println!("LLMIUM viewer http://127.0.0.1:{port}");
-    for request in server.incoming_requests() {
+    for mut request in server.incoming_requests() {
         let response = (|| -> Result<(Vec<u8>, &str)> {
             let header = |name| {
                 request
@@ -627,11 +632,30 @@ fn serve(root: &Path, port: u16, checkpoints: &[PathBuf]) -> Result<()> {
                     .map(|header| header.value.as_str())
             };
             validate_viewer_origin(header("Host"), header("Origin"), port)?;
+            let url = url::Url::parse(&format!("http://localhost{}", request.url()))?;
+            if request.method() == &tiny_http::Method::Post {
+                ensure!(url.path() == "/api/experiments", "Unknown write endpoint");
+                ensure!(
+                    header("Origin").is_some(),
+                    "Experiment requests require a same-origin Origin header"
+                );
+                ensure!(
+                    header("Content-Type")
+                        .is_some_and(|value| value.split(';').next() == Some("application/json")),
+                    "Experiment requests require application/json"
+                );
+                let mut bytes = Vec::new();
+                request.as_reader().take(16385).read_to_end(&mut bytes)?;
+                ensure!(bytes.len() <= 16384, "Experiment request exceeds 16 KiB");
+                return Ok((
+                    serde_json::to_vec(&lab.start(&serde_json::from_slice(&bytes)?)?)?,
+                    "application/json",
+                ));
+            }
             ensure!(
                 request.method() == &tiny_http::Method::Get,
-                "Read-only viewer"
+                "Use GET for viewer reads"
             );
-            let url = url::Url::parse(&format!("http://localhost{}", request.url()))?;
             match url.path() {
                 "/" => Ok((
                     include_bytes!("../web/index.html").to_vec(),
@@ -645,8 +669,51 @@ fn serve(root: &Path, port: u16, checkpoints: &[PathBuf]) -> Result<()> {
                     include_bytes!("../web/trace.js").to_vec(),
                     "text/javascript; charset=utf-8",
                 )),
+                "/workbench.css" => Ok((
+                    include_bytes!("../web/workbench.css").to_vec(),
+                    "text/css; charset=utf-8",
+                )),
+                "/workbench.js" => Ok((
+                    include_bytes!("../web/workbench.js").to_vec(),
+                    "text/javascript; charset=utf-8",
+                )),
+                "/fonts/Manrope.ttf" => Ok((
+                    include_bytes!("../web/fonts/Manrope.ttf").to_vec(),
+                    "font/ttf",
+                )),
+                "/fonts/IBMPlexMono-Regular.ttf" => Ok((
+                    include_bytes!("../web/fonts/IBMPlexMono-Regular.ttf").to_vec(),
+                    "font/ttf",
+                )),
+                "/documents/demo-guide.pdf" | "/documents/project-overview.pdf" => {
+                    let name = url.path().rsplit('/').next().unwrap();
+                    Ok((
+                        fs::read(
+                            root.parent()
+                                .context("Report root has no parent")?
+                                .join("output/pdf")
+                                .join(name),
+                        )
+                        .context("PDF is not generated yet")?,
+                        "application/pdf",
+                    ))
+                }
+                "/api/jobs" => Ok((
+                    serde_json::to_vec(
+                        &lab.status(
+                            url.query_pairs()
+                                .find(|(key, _)| key == "id")
+                                .as_ref()
+                                .map(|(_, value)| value.as_ref()),
+                        )?,
+                    )?,
+                    "application/json",
+                )),
                 "/api/checkpoints" | "/api/checkpoint" | "/api/tensor-tile" => Ok((
-                    serde_json::to_vec(&atlas::http_request(&url, &checkpoints)?)?,
+                    serde_json::to_vec(&atlas::http_request(
+                        &url,
+                        &lab.checkpoints.lock().unwrap(),
+                    )?)?,
                     "application/json",
                 )),
                 "/api/reports" => {
@@ -694,7 +761,19 @@ fn list_reports(root: &Path, dir: &Path, result: &mut Vec<String>) -> Result<()>
         if p.is_dir() {
             list_reports(root, &p, result)?;
         } else if p.extension().is_some_and(|e| e == "json")
-            && p.file_name().unwrap() != "llmium-repair.json"
+            && ![
+                "llmium-repair.json",
+                "llmium-seed.json",
+                "job-state.json",
+                "config.json",
+                "generation_config.json",
+                "tokenizer.json",
+                "tokenizer_config.json",
+                "vocab.json",
+                "model.safetensors.index.json",
+            ]
+            .iter()
+            .any(|name| p.file_name().unwrap() == *name)
         {
             result.push(p.strip_prefix(root)?.to_string_lossy().replace('\\', "/"));
         }
@@ -978,7 +1057,8 @@ fn main() -> Result<()> {
             root,
             port,
             checkpoint,
-        } => serve(&root, port, &checkpoint)?,
+            allow_edits,
+        } => serve(&root, port, &checkpoint, allow_edits)?,
         Command::Mcp => {
             for line in io::stdin().lock().lines() {
                 let line = line?;

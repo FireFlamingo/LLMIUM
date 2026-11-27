@@ -16,8 +16,23 @@ pub fn scale(
     factor: f64,
     output: &Path,
 ) -> Result<Value> {
+    edit(reference, name, index, factor, true, output)
+}
+
+pub fn set(reference: &Path, name: &str, index: usize, value: f64, output: &Path) -> Result<Value> {
+    edit(reference, name, index, value, false, output)
+}
+
+fn edit(
+    reference: &Path,
+    name: &str,
+    index: usize,
+    value: f64,
+    multiply: bool,
+    output: &Path,
+) -> Result<Value> {
     ensure!(!output.exists(), "Seed output must be a new directory");
-    ensure!(factor.is_finite(), "Scale factor must be finite");
+    ensure!(value.is_finite(), "Edit value must be finite");
     let checkpoint = super::Checkpoint::open(reference)?;
     let tensors = checkpoint.tensors()?;
     let tensor = tensors.get(name).context("Unknown seed tensor")?;
@@ -28,8 +43,11 @@ pub fn scale(
     );
     let old_bytes = &tensor.data()[index * width..(index + 1) * width];
     let old = super::number(old_bytes, tensor.dtype())?;
-    ensure!(old.is_finite(), "Seed source parameter must be finite");
-    let desired = old * factor;
+    ensure!(
+        !multiply || old.is_finite(),
+        "Scale source parameter must be finite"
+    );
+    let desired = if multiply { old * value } else { value };
     ensure!(desired.is_finite(), "Scaled parameter overflow");
     let replacement = match tensor.dtype() {
         Dtype::F32 => (desired as f32).to_le_bytes().to_vec(),
@@ -81,7 +99,7 @@ pub fn scale(
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>()
     };
-    let manifest = json!({"schema_version":1,"seeded_fault":true,"operation":"finite_parameter_scale","reference":reference,"output":output,"tensor":name,"flat_index":index,"shape":tensor.shape(),"dtype":format!("{:?}",tensor.dtype()),"factor":factor,"original_value":old,"stored_value":actual,"original_raw_le_hex":hex(old_bytes),"stored_raw_le_hex":hex(&replacement),"source_tensor_sha256":format!("{:x}",Sha256::digest(tensor.data())),"seeded_tensor_sha256":format!("{:x}",Sha256::digest(seeded_tensors[name].data())),"interpretation":"Deliberately seeded finite parameter change in a new checkpoint copy. Behavioral impact must be measured separately; this operation does not establish a naturally occurring vulnerability."});
+    let manifest = json!({"schema_version":1,"seeded_fault":true,"operation":if multiply{"finite_parameter_scale"}else{"finite_parameter_set"},"reference":reference,"output":output,"tensor":name,"flat_index":index,"shape":tensor.shape(),"dtype":format!("{:?}",tensor.dtype()),"factor":if multiply{Some(value)}else{None},"requested_value":desired,"original_value":if old.is_finite(){json!(old)}else{json!(old.to_string())},"stored_value":actual,"original_raw_le_hex":hex(old_bytes),"stored_raw_le_hex":hex(&replacement),"source_tensor_sha256":format!("{:x}",Sha256::digest(tensor.data())),"seeded_tensor_sha256":format!("{:x}",Sha256::digest(seeded_tensors[name].data())),"interpretation":"Deliberately seeded finite parameter change in a new checkpoint copy. Behavioral impact must be measured separately; this operation does not establish a naturally occurring vulnerability."});
     super::write_json(&staging.path().join("llmium-seed.json"), &manifest)?;
     drop(seeded_tensors);
     drop(seeded);

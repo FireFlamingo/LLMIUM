@@ -96,6 +96,10 @@ fn select(report: &Value, args: &Value) -> Result<Value> {
     let records = step["activation_trace"]
         .as_array()
         .context("This step has no recorded activation trace")?;
+    ensure!(
+        records.iter().all(Value::is_object),
+        "Activation observations must be objects"
+    );
     let reference = stage_name.and_then(|_| {
         report["stages"]["reference"]["evaluations"]
             .as_array()?
