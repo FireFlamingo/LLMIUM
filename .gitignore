@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+models/
+runs/
+*.safetensors
+*.bin
+*.pt
+*.key
+*.pem
